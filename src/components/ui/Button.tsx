@@ -15,23 +15,24 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         className={cn(
-          "inline-flex items-center justify-center rounded border font-medium",
-          "transition-colors focus-visible:outline-none",
+          "inline-flex items-center justify-center rounded-md border font-medium",
+          "transition-[background-color,border-color,color,transform] focus-visible:outline-none",
+          "active:translate-y-px",
           "disabled:opacity-40 disabled:pointer-events-none",
           variant === "primary" &&
-            "border-[#8A5A2B] bg-[#8A5A2B] text-white hover:bg-[#74471f]",
+            "border-[var(--accent-700)] bg-[var(--accent-700)] text-[#fffdf9] hover:bg-[var(--accent-600)]",
           variant === "ghost" &&
-            "border-transparent bg-transparent text-[#374151] hover:bg-[#f3f4f6]",
+            "border-transparent bg-transparent text-[var(--ink-soft)] hover:bg-[var(--surface-soft)]",
           variant === "danger" &&
-            "border-[#dc2626] bg-[#dc2626] text-white hover:bg-[#b91c1c]",
+            "border-[#a73028] bg-[#b9382f] text-[#fff8f6] hover:bg-[#a73028]",
           variant === "surface" &&
-            "border-[#e8e1d4] bg-[#fdfbf6] text-[#111827] hover:bg-[#f7f0e2]",
+            "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--app-fg)] hover:bg-[var(--surface-soft)]",
           variant === "outline" &&
-            "border-[#e8e1d4] bg-[#fdfbf6] text-[#111827] hover:bg-[#f7f0e2]",
-          size === "sm" && "h-8 px-3 text-xs gap-1",
-          size === "md" && "h-9 px-4 text-sm gap-1.5",
-          size === "lg" && "h-10 px-5 text-base gap-2",
-          size === "icon" && "h-9 w-9 text-sm",
+            "border-[var(--card-border)] bg-[var(--card-bg)] text-[var(--app-fg)] hover:bg-[var(--surface-soft)]",
+          size === "sm" && "h-11 px-3 text-xs gap-1 md:h-8",
+          size === "md" && "h-11 px-4 text-sm gap-1.5 md:h-9",
+          size === "lg" && "h-11 px-5 text-base gap-2 md:h-10",
+          size === "icon" && "h-11 w-11 text-sm md:h-9 md:w-9",
           className
         )}
         {...props}

@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/layout/AppShell";
-import { SessionDetailView } from "@/features/library/components/SessionDetailView";
+import { SessionRunView } from "@/features/library/components/SessionRunView";
 
 interface SessionPageProps {
   params: Promise<{ id: string }>;
@@ -10,7 +10,7 @@ export default async function SessionPage({ params }: SessionPageProps) {
 
   return (
     <AppShell>
-      <SessionDetailView sessionId={id} />
+      <SessionRunView sessionId={id} />
     </AppShell>
   );
 }

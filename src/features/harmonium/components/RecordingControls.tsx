@@ -6,7 +6,9 @@ import { useLibraryStore } from "@/store/useLibraryStore";
 import { useProfileStore } from "@/store/useProfileStore";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { cn } from "@/lib/cn";
+import { saveBlobUrlAsRecording } from "@/services/localRecordingStorage";
 import { startAudioCapture, stopAudioCapture } from "../engine/audioEngine";
 
 export interface RecordingController {
@@ -21,7 +23,7 @@ export interface RecordingController {
   setRecordingName: (value: string) => void;
   handleStart: () => Promise<void>;
   handleStop: () => Promise<void>;
-  handleSave: () => void;
+  handleSave: () => Promise<void>;
   handleDiscard: () => void;
   handleDeleteSavedRecording: (id: string, name: string) => void;
 }
@@ -107,6 +109,15 @@ export function MiniAudioPlayer({ src }: { src: string }) {
     audio.pause();
   }
 
+  function handleStop() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+    setCurrentTime(0);
+    setIsPlaying(false);
+  }
+
   function handleSeek(nextValue: number) {
     const audio = audioRef.current;
     if (!audio || duration <= 0) return;
@@ -120,7 +131,7 @@ export function MiniAudioPlayer({ src }: { src: string }) {
   return (
     <div className="mt-1.5 rounded border border-[#dfd3bf] bg-[#f8f2e8] px-2 py-1.5">
       <audio ref={audioRef} src={src} preload="metadata" className="hidden" />
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         <button
           type="button"
           onClick={togglePlayback}
@@ -128,6 +139,15 @@ export function MiniAudioPlayer({ src }: { src: string }) {
           aria-label={isPlaying ? "Pause recording" : "Play recording"}
         >
           {isPlaying ? "II" : "▶"}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleStop}
+          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#cdb38e] bg-[#fffaf0] text-[11px] font-semibold text-[#8a5a2b] hover:bg-[#f3e7d6]"
+          aria-label="Stop playback"
+        >
+          []
         </button>
 
         <input
@@ -164,7 +184,9 @@ export function useRecordingController(): RecordingController {
   const startTimeRef  = useRef<number>(0);
   const durationRef   = useRef<number>(0);
 
-  const sortedRecordings = [...recordings]
+  const sortedRecordings = recordings
+    .filter((recording) => recording.instrument === "harmonium")
+    .slice()
     .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
     .slice(0, 6);
 
@@ -207,16 +229,24 @@ export function useRecordingController(): RecordingController {
     }
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!savedBlobUrl) return;
+    const id = crypto.randomUUID();
+    let storageUrl: string | null = null;
+    try {
+      storageUrl = await saveBlobUrlAsRecording(id, savedBlobUrl);
+    } catch {
+      storageUrl = null;
+    }
+
     const name = recordingName.trim() || `Recording ${new Date().toLocaleString()}`;
     addRecording({
-      id: crypto.randomUUID(),
+      id,
       uid: "",
       name,
       durationSeconds: durationRef.current,
       createdAt: new Date(),
-      storageUrl: null,
+      storageUrl,
       isFavorite: false,
       notes: "",
       tags: [],
@@ -235,14 +265,14 @@ export function useRecordingController(): RecordingController {
   }
 
   function handleDeleteSavedRecording(id: string, name: string) {
-    if (!window.confirm(`Delete “${name}”? This cannot be undone.`)) return;
+    void name;
     deleteRecording(id);
   }
 
   return {
     isRecording,
     recordedNotesCount: recordedNotes.length,
-    recordingsCount: recordings.length,
+    recordingsCount: sortedRecordings.length,
     sortedRecordings,
     savedBlobUrl,
     recordingName,
@@ -274,6 +304,7 @@ export function RecordingControls({ controller }: RecordingControlsProps) {
     handleDeleteSavedRecording,
   } = controller;
   const [isRecordingsOpen, setIsRecordingsOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const hasSavedFlow = Boolean(savedBlobUrl);
   const hasRecordings = recordingsCount > 0;
@@ -342,7 +373,7 @@ export function RecordingControls({ controller }: RecordingControlsProps) {
                       ) : (
                         <p className="min-w-44 text-[11px] text-[#9ca3af]">Audio unavailable on this device.</p>
                       )}
-                      <Button size="sm" variant="danger" onClick={() => handleDeleteSavedRecording(recording.id, recording.name)}>Delete</Button>
+                      <Button size="sm" variant="danger" onClick={() => setDeleteTarget({ id: recording.id, name: recording.name })}>Delete</Button>
                     </div>
                   ))}
                 </div>
@@ -351,6 +382,19 @@ export function RecordingControls({ controller }: RecordingControlsProps) {
           )}
         </Card>
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete recording"
+        message={deleteTarget ? `Delete ${deleteTarget.name}? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          handleDeleteSavedRecording(deleteTarget.id, deleteTarget.name);
+          setDeleteTarget(null);
+        }}
+      />
     </>
   );
 }

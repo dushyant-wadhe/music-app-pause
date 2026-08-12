@@ -45,11 +45,11 @@ export function HarmoniumControls() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[#6b7280]">Root Sa</p>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[#5f6877]">Root Sa</p>
           <select
             value={rootNote}
             onChange={(event) => setRootNote(event.target.value as RootNote)}
-            className="w-full rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs text-[#111827]"
+            className="h-11 w-full rounded border border-[#d1d5db] bg-white px-3 text-sm text-[#111827] md:h-9 md:text-xs"
           >
             {rootNotes.map((note) => (
               <option key={note} value={note}>{note}</option>
@@ -59,8 +59,8 @@ export function HarmoniumControls() {
 
       </div>
 
-      <details className="border-t border-[#e8e1d4] pt-3">
-        <summary className="cursor-pointer text-xs font-medium text-[#6b7280]">Advanced sound settings</summary>
+      <details className="border-t border-[#e3d7c2] pt-3">
+        <summary className="cursor-pointer text-xs font-medium text-[#5f6877]">More sound controls</summary>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <Slider
             label="Sustain"

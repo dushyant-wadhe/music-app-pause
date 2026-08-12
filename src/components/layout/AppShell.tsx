@@ -10,9 +10,9 @@ interface AppShellProps {
 
 export function AppShell({ children, className }: AppShellProps) {
   return (
-    <div className="min-h-screen bg-[#F8F5EE] text-[#111827]">
+    <div className="min-h-screen text-[#1d232d]">
       <BottomNav />
-      <main className={cn("mx-auto w-full max-w-6xl px-3 py-2 md:px-4 md:py-3", className)}>
+      <main className={cn("mx-auto w-full max-w-6xl px-4 py-4 md:px-6 md:py-6", className)}>
         {children}
       </main>
     </div>

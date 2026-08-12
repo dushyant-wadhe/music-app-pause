@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useHarmoniumStore } from "@/store/useHarmoniumStore";
+import { useLibraryStore } from "@/store/useLibraryStore";
 import { useTablaStore } from "@/store/useTablaStore";
 import { useTanpuraStore } from "@/store/useTanpuraStore";
 import { resolveTablaVariant, TAALS } from "@/features/tabla/data/taals";
@@ -23,6 +24,8 @@ export function PlaybackBridge() {
   const tablaPatternLayer = useTablaStore((state) => state.patternLayer);
   const tablaStylePackId = useTablaStore((state) => state.stylePackId);
   const tablaVariantId = useTablaStore((state) => state.variantId);
+  const libraryHasHydrated = useLibraryStore((state) => state.hasHydrated);
+  const hydrateRecordingBlobUrls = useLibraryStore((state) => state.hydrateRecordingBlobUrls);
 
   useEffect(() => {
     setMasterVolume(harmoniumVolume);
@@ -102,6 +105,11 @@ export function PlaybackBridge() {
       updateBpm(tablaBpm);
     }
   }, [tablaBpm, tablaIsPlaying]);
+
+  useEffect(() => {
+    if (!libraryHasHydrated) return;
+    void hydrateRecordingBlobUrls();
+  }, [hydrateRecordingBlobUrls, libraryHasHydrated]);
 
   return null;
 }

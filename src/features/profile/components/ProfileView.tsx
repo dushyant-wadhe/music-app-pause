@@ -1,18 +1,27 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useProfileStore } from "@/store/useProfileStore";
 import { useLibraryStore } from "@/store/useLibraryStore";
-import { useTablaStore } from "@/store/useTablaStore";
 import { Card, SectionHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Slider } from "@/components/ui/Slider";
+import { isFirebaseConfigured } from "@/services/firebase";
+import { signInWithGoogle, signOut as signOutOfFirebase, onAuthChange } from "@/services/auth";
 import type { UserSettings } from "@/types";
 
 export function ProfileView() {
-  const { user, settings, updateSettings, signOut } = useProfileStore();
+  const { user, settings, updateSettings, isLoading, setLoading } = useProfileStore();
   const recordings = useLibraryStore((s) => s.recordings);
   const sessions = useLibraryStore((s) => s.sessions);
-  const favoriteTaals = useTablaStore((s) => s.favoriteTaals);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const firebaseReady = isFirebaseConfigured();
+
+  useEffect(() => {
+    if (!firebaseReady) return;
+    return onAuthChange((nextUser) => useProfileStore.getState().setUser(nextUser));
+  }, [firebaseReady]);
 
   const totalMinutes = Math.floor(sessions.reduce((acc, session) => acc + (session.actualPracticeSeconds ?? 0), 0) / 60);
 
@@ -20,26 +29,39 @@ export function ProfileView() {
     { label: "Practice Minutes", value: totalMinutes },
     { label: "Total Sessions",   value: sessions.length },
     { label: "Recordings",       value: recordings.length },
-    { label: "Favorite Taals",   value: favoriteTaals.length },
   ];
 
   function patchSetting<K extends keyof UserSettings>(key: K, val: UserSettings[K]) {
     updateSettings({ [key]: val } as Partial<UserSettings>);
   }
 
+  async function handleSignIn() {
+    setAuthError(null);
+    setLoading(true);
+    const profile = await signInWithGoogle();
+    setLoading(false);
+    if (!profile) setAuthError("Sign-in failed. Please try again.");
+  }
+
+  async function handleSignOut() {
+    setAuthError(null);
+    await signOutOfFirebase();
+  }
+
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-base font-bold text-[#111827]">Profile</h1>
-        <p className="text-[11px] text-[#6b7280]">Your practice stats and settings</p>
+        <h1 className="text-xl font-semibold text-[#1d232d]">Profile</h1>
+        <p className="text-[11px] text-[#5f6877]">Your progress snapshot and default preferences.</p>
       </div>
 
-      <Card className="p-3">
+      <Card className="p-4">
         {user ? (
           <div className="flex items-center gap-2.5">
             <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-[#e5e7eb]">
               {user.photoURL ? (
-                <img src={user.photoURL} alt={user.displayName} className="w-full h-full object-cover" />
+                <Image src={user.photoURL} alt={user.displayName} width={40} height={40} className="h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-xl text-[#6b7280]">
                   {user.displayName?.[0]?.toUpperCase() ?? "?"}
@@ -47,25 +69,27 @@ export function ProfileView() {
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="truncate text-xs font-semibold text-[#111827]">{user.displayName}</p>
-              <p className="truncate text-[11px] text-[#6b7280]">{user.email}</p>
+              <p className="truncate text-xs font-semibold text-[#1d232d]">{user.displayName}</p>
+              <p className="truncate text-[11px] text-[#5f6877]">{user.email}</p>
             </div>
-            <Button variant="outline" size="sm" onClick={signOut}>
+            <Button variant="outline" size="sm" onClick={handleSignOut}>
               Sign out
             </Button>
           </div>
+        ) : firebaseReady ? (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-[#5f6877]">Sign in to sync sessions and recordings.</p>
+              <Button size="sm" variant="outline" onClick={handleSignIn} disabled={isLoading} className="gap-2">
+                <GoogleIcon /> {isLoading ? "Signing in..." : "Sign in with Google"}
+              </Button>
+            </div>
+            {authError && <p role="alert" className="text-[11px] text-[#b91c1c]">{authError}</p>}
+          </div>
         ) : (
-          <div className="flex flex-col items-center gap-3 py-2">
-            <p className="text-center text-xs text-[#6b7280]">
-              Sign in to sync your practice data across devices
-            </p>
-            <Button
-              size="md"
-              onClick={() => {
-                alert("Firebase Auth: Configure NEXT_PUBLIC_FIREBASE_* env vars to enable Google Sign-In");
-              }}
-              className="gap-2"
-            >
+          <div className="flex items-center justify-between gap-3 py-1">
+            <p className="text-xs text-[#5f6877]">Sign-in coming soon</p>
+            <Button size="sm" variant="outline" disabled className="gap-2">
               <GoogleIcon /> Sign in with Google
             </Button>
           </div>
@@ -74,37 +98,19 @@ export function ProfileView() {
 
       <div>
         <SectionHeader title="Practice Stats" />
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {stats.map(({ label, value }) => (
             <Card key={label} className="flex flex-col gap-0.5 p-2.5">
-              <p className="text-lg font-bold text-[#111827]">{value}</p>
-              <p className="text-[11px] text-[#6b7280]">{label}</p>
+              <p className="text-lg font-bold text-[#1d232d]">{value}</p>
+              <p className="text-[11px] text-[#5f6877]">{label}</p>
             </Card>
           ))}
         </div>
       </div>
 
-      {favoriteTaals.length > 0 && (
-        <Card className="p-3">
-          <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#6b7280]">
-            Favorite Taals
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {favoriteTaals.map((t) => (
-              <span
-                key={t}
-                className="rounded border border-[#d1d5db] bg-[#f9fafb] px-2 py-0.5 text-[11px] font-medium text-[#374151]"
-              >
-                {t}
-              </span>
-            ))}
-          </div>
-        </Card>
-      )}
-
       <div>
-        <SectionHeader title="Settings" />
-        <Card className="flex flex-col gap-3 p-3">
+        <SectionHeader title="Settings" subtitle="Essential defaults" />
+        <Card className="flex flex-col gap-4 p-4">
           <Slider
             label="Default BPM"
             value={settings.defaultBPM}
@@ -121,39 +127,20 @@ export function ProfileView() {
             onChange={(v) => patchSetting("defaultVolume", v / 100)}
             formatValue={(v) => `${v}%`}
           />
-          <Slider
-            label="Default Octave"
-            value={settings.defaultOctave}
-            min={2}
-            max={6}
-            onChange={(v) => patchSetting("defaultOctave", v)}
-            formatValue={(v) => `Oct ${v}`}
-          />
-          <div>
-            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#6b7280]">
-              Audio Quality
-            </p>
-            <div className="flex gap-2 flex-wrap">
-              {(["interactive", "balanced", "playback"] as const).map((hint) => (
-                <Button
-                  key={hint}
-                  variant={settings.audioLatencyHint === hint ? "primary" : "outline"}
-                  size="sm"
-                  onClick={() => patchSetting("audioLatencyHint", hint)}
-                  className="capitalize"
-                >
-                  {hint}
-                </Button>
-              ))}
+          <details className="border-t border-[#e3d7c2] pt-3">
+            <summary className="cursor-pointer text-xs font-medium text-[#5f6877]">More default settings</summary>
+            <div className="mt-3">
+              <Slider
+                label="Default Octave"
+                value={settings.defaultOctave}
+                min={2}
+                max={6}
+                onChange={(v) => patchSetting("defaultOctave", v)}
+                formatValue={(v) => `Oct ${v}`}
+              />
             </div>
-          </div>
+          </details>
         </Card>
-      </div>
-
-      <div className="rounded border border-dashed border-[#d1d5db] p-2.5">
-        <p className="text-[11px] text-[#6b7280]">
-          AI practice recommendations · Cloud sync · Advanced stats — Coming soon
-        </p>
       </div>
     </div>
   );

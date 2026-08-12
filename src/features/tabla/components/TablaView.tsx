@@ -4,7 +4,7 @@ import { useEffect, useMemo } from "react";
 import { useTablaStore } from "@/store/useTablaStore";
 import { useTablaEngine } from "../hooks/useTablaEngine";
 import { BeatVisualizer } from "./BeatVisualizer";
-import { TablaRecordingControls } from "./TablaRecordingControls";
+import { TablaRecordingControls, useTablaRecordingController } from "./TablaRecordingControls";
 import { Slider } from "@/components/ui/Slider";
 import { Button } from "@/components/ui/Button";
 import { Badge, Card } from "@/components/ui/Card";
@@ -12,6 +12,7 @@ import { getCoreVariantsForTaal, getStylePacksForTaal, TAAL_LIST } from "../data
 import type { TaalName } from "@/types";
 
 export function TablaView() {
+  const recordingController = useTablaRecordingController();
   const {
     bpm, setBpm,
     pitch, setPitch,
@@ -73,29 +74,47 @@ export function TablaView() {
   }
 
   return (
-    <div className="flex w-full flex-col gap-2 p-1.5">
-      <div>
-        <h1 className="text-base font-bold text-[#111827]">Tabla</h1>
-        <p className="text-[11px] text-[#6b7280]">Rhythm companion for riyaaz</p>
+    <div className="flex w-full flex-col gap-4 p-2">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-[#1d232d]">Tabla</h1>
+          <p className="text-[11px] text-[#5f6877]">Set rhythm quickly and stay in flow.</p>
+        </div>
+        {recordingController.isRecording ? (
+          <Button variant="danger" size="sm" onClick={recordingController.handleStop}>
+            <span className="h-2 w-2 rounded-full bg-[#fecaca] animate-pulse" aria-hidden="true" />
+            Stop recording
+          </Button>
+        ) : (
+          <Button
+            variant="surface"
+            size="sm"
+            onClick={recordingController.handleStart}
+            disabled={recordingController.isStarting || Boolean(recordingController.blobUrl)}
+          >
+            <span className="h-2.5 w-2.5 rounded-full bg-[#dc2626]" aria-hidden="true" />
+            {recordingController.isStarting ? "Starting..." : "Record"}
+          </Button>
+        )}
       </div>
 
-      <Card glow={isPlaying} className="p-3">
+      <Card glow={isPlaying} className="p-4">
         <div className="mb-1.5 flex items-center justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-[#6b7280]">Current Taal</p>
-            <h2 className="text-lg font-bold text-[#111827]">{selectedTaal}</h2>
+            <p className="text-[10px] uppercase tracking-widest text-[#5f6877]">Current Taal</p>
+            <h2 className="text-xl font-semibold text-[#1d232d]">{selectedTaal}</h2>
             {taal && (
-              <p className="mt-0.5 text-[11px] text-[#6b7280]">{taal.description}</p>
+              <p className="mt-0.5 text-[11px] text-[#5f6877]">{taal.description}</p>
             )}
             {activeVariant && (
-              <p className="mt-0.5 text-[11px] text-[#6b7280]">
+              <p className="mt-0.5 text-[11px] text-[#5f6877]">
                 Active Pattern: {activeVariant.name} ({activeVariant.kind})
               </p>
             )}
           </div>
           <div className="text-right">
-            <p className="text-xl font-mono font-bold text-[#111827]">{bpm}</p>
-            <p className="text-[10px] uppercase tracking-wider text-[#6b7280]">BPM</p>
+            <p className="text-xl font-mono font-bold text-[#1d232d]">{bpm}</p>
+            <p className="text-[10px] uppercase tracking-wider text-[#5f6877]">BPM</p>
           </div>
         </div>
 
@@ -132,16 +151,14 @@ export function TablaView() {
         </div>
       </Card>
 
-      <TablaRecordingControls />
-
-      <Card className="p-3">
+      <Card className="p-4">
         <div className="flex flex-col gap-3">
           <div>
-            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#6b7280]">Choose taal</p>
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#5f6877]">Choose taal</p>
             <select
               value={selectedTaal}
               onChange={(event) => handleTaalChange(event.target.value)}
-              className="w-full rounded border border-[#d1d5db] bg-white px-2 py-2 text-sm text-[#111827]"
+              className="h-11 w-full rounded border border-[#d1d5db] bg-white px-3 text-sm text-[#111827] md:h-9"
               aria-label="Choose taal"
             >
               {TAAL_LIST.map((taalOption) => (
@@ -150,18 +167,18 @@ export function TablaView() {
                 </option>
               ))}
             </select>
-            {taal && <p className="mt-1 text-[11px] text-[#6b7280]">{taal.description}</p>}
+            {taal && <p className="mt-1 text-[11px] text-[#5f6877]">{taal.description}</p>}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#6b7280]">Mode</p>
+              <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#5f6877]">Mode</p>
               <div className="flex flex-wrap gap-1.5">
                 <Button variant={mode === "tabla" ? "primary" : "outline"} size="sm" onClick={() => setMode("tabla")}>Tabla</Button>
                 <Button variant={mode === "metronome" ? "primary" : "outline"} size="sm" onClick={() => setMode("metronome")}>Metronome</Button>
               </div>
             </div>
             <div>
-              <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#6b7280]">Count-in</p>
+              <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#5f6877]">Count-in</p>
               <div className="flex flex-wrap gap-1.5">
                 {([0, 2, 4, 8] as const).map((beats) => (
                   <Button key={beats} variant={countInBeats === beats ? "primary" : "outline"} size="sm" onClick={() => setCountInBeats(beats)}>
@@ -172,12 +189,12 @@ export function TablaView() {
             </div>
           </div>
           <Slider label="BPM" value={bpm} min={40} max={240} onChange={setBpm} formatValue={(v) => `${v} BPM`} />
-          <details className="border-t border-[#e8e1d4] pt-3">
-            <summary className="cursor-pointer text-xs font-medium text-[#6b7280]">Advanced rhythm settings</summary>
+          <details className="border-t border-[#e3d7c2] pt-3">
+            <summary className="cursor-pointer text-xs font-medium text-[#5f6877]">More rhythm controls</summary>
             <div className="mt-3">
         <div className="flex flex-col gap-3">
           <div>
-            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#6b7280]">
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#5f6877]">
               Pattern Layer
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -208,7 +225,7 @@ export function TablaView() {
             </div>
             {patternLayer === "style-pack" && (
               <div className="mt-1.5">
-                <p className="text-[11px] text-[#6b7280]">{selectedPack?.description || "No style pack available for this taal yet."}</p>
+                <p className="text-[11px] text-[#5f6877]">{selectedPack?.description || "No style pack available for this taal yet."}</p>
                 {selectedPack && (
                   <select
                     value={selectedPack.id}
@@ -217,7 +234,7 @@ export function TablaView() {
                       setStylePackId(nextPack?.id ?? null);
                       if (nextPack?.variants[0]) setVariantId(nextPack.variants[0].id);
                     }}
-                    className="mt-1 w-full rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs text-[#111827]"
+                    className="mt-1 h-11 w-full rounded border border-[#d1d5db] bg-white px-3 text-sm text-[#111827] md:h-8 md:text-xs"
                   >
                     {stylePacks.map((pack) => (
                       <option key={pack.id} value={pack.id}>{pack.name}</option>
@@ -229,7 +246,7 @@ export function TablaView() {
           </div>
 
           <div>
-            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#6b7280]">
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#5f6877]">
               Beat Variants
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -245,10 +262,10 @@ export function TablaView() {
               ))}
             </div>
             {activeStylePack && (
-              <p className="mt-1 text-[11px] text-[#6b7280]">Source: {activeStylePack.name} ({activeStylePack.source})</p>
+              <p className="mt-1 text-[11px] text-[#5f6877]">Source: {activeStylePack.name} ({activeStylePack.source})</p>
             )}
             {activeVariant && (
-              <p className="mt-1 text-[11px] text-[#6b7280]">{activeVariant.description}</p>
+              <p className="mt-1 text-[11px] text-[#5f6877]">{activeVariant.description}</p>
             )}
           </div>
 
@@ -261,7 +278,7 @@ export function TablaView() {
             formatValue={(v) => (v === 0 ? "0" : v > 0 ? `+${v}` : `${v}`)}
           />
           <div>
-            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#6b7280]">
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#5f6877]">
               Tempo Presets
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -283,6 +300,8 @@ export function TablaView() {
           </details>
         </div>
       </Card>
+
+      <TablaRecordingControls controller={recordingController} />
     </div>
   );
 }

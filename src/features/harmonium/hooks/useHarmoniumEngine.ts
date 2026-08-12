@@ -74,22 +74,33 @@ export function useHarmoniumEngine() {
 
   // Keyboard support
   useEffect(() => {
+    const isTypingTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      return target.isContentEditable || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+    };
+
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.repeat || e.target instanceof HTMLInputElement) return;
-      if (keyboardNoteMap.current.has(e.key.toLowerCase())) return;
-      const semi = KEY_MAP[e.key.toLowerCase()];
+      if (e.repeat || isTypingTarget(e.target) || e.isComposing) return;
+      const lowered = e.key.toLowerCase();
+      if (keyboardNoteMap.current.has(lowered)) return;
+      const semi = KEY_MAP[lowered];
       if (semi === undefined) return;
+      e.preventDefault();
+      e.stopPropagation();
       const noteOct      = semi >= 12 ? octave + 1 : octave;
       const semitoneInOct = semi % 12;
       const note = `${NOTE_NAMES[semitoneInOct]}${noteOct}`;
       const source = `keyboard:${e.code}`;
-      keyboardNoteMap.current.set(e.key.toLowerCase(), { note, source });
+      keyboardNoteMap.current.set(lowered, { note, source });
       handleNoteOn(note, 1, source);
     };
     const onKeyUp = (e: KeyboardEvent) => {
       const lowered = e.key.toLowerCase();
       const activeKey = keyboardNoteMap.current.get(lowered);
       if (!activeKey) return;
+      e.preventDefault();
+      e.stopPropagation();
       keyboardNoteMap.current.delete(lowered);
       handleNoteOff(activeKey.note, activeKey.source);
     };
@@ -111,15 +122,15 @@ export function useHarmoniumEngine() {
       }
     };
 
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup",   onKeyUp);
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("keyup", onKeyUp, true);
     window.addEventListener("blur", onWindowBlur);
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("pointerup", onPointerEnd);
     window.addEventListener("pointercancel", onPointerEnd);
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup",   onKeyUp);
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("keyup", onKeyUp, true);
       window.removeEventListener("blur", onWindowBlur);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pointerup", onPointerEnd);

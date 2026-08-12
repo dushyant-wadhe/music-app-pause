@@ -12,11 +12,11 @@ export function HarmoniumView() {
   const recordingController = useRecordingController();
 
   return (
-    <div className="flex w-full flex-col gap-3 p-2">
-      <div className="flex items-center justify-between">
+    <div className="flex w-full flex-col gap-5 px-2 py-3 md:py-4">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-bold text-[#111827]">Harmonium</h1>
-          <p className="text-xs text-[#6b7280]">A S D F G H J - white keys, W E T Y U - black</p>
+          <h1 className="text-xl font-semibold text-[#1d232d]">Harmonium</h1>
+          <p className="text-xs text-[#5f6877]">A S D F G H J for white keys, W E T Y U for black keys.</p>
         </div>
         {recordingController.isRecording ? (
           <Button variant="danger" size="sm" onClick={recordingController.handleStop}>
@@ -36,16 +36,20 @@ export function HarmoniumView() {
         )}
       </div>
 
-      <div className="overflow-hidden rounded border border-[#d1d5db] bg-white">
-        <div className="flex items-center justify-end p-2 pb-0">
-          <ActiveNoteDisplay />
-        </div>
-        <div className="p-2 pb-0">
-          <HarmoniumKeyboard onNoteOn={handleNoteOn} onNoteOff={handleNoteOff} />
+      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 shadow-[0_8px_20px_rgba(74,47,18,0.1)]">
+        <div className="overflow-hidden rounded-md border border-[var(--surface-muted)] bg-[var(--surface-soft)]">
+          <div className="flex items-center justify-between border-b border-[var(--card-border)] bg-[var(--card-bg)] px-2.5 py-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--ink-soft)]">Performance</p>
+            <ActiveNoteDisplay />
+          </div>
+          <div className="p-3 pb-1">
+            <HarmoniumKeyboard onNoteOn={handleNoteOn} onNoteOff={handleNoteOff} />
+          </div>
         </div>
       </div>
 
       <HarmoniumControls />
+
       <RecordingControls controller={recordingController} />
     </div>
   );

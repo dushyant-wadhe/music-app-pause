@@ -5,6 +5,7 @@ import { useTablaStore } from "@/store/useTablaStore";
 import { useTanpuraStore } from "@/store/useTanpuraStore";
 import { stopAllNotes, stopDrone } from "@/features/harmonium/engine/audioEngine";
 import { stopRhythm } from "@/features/tabla/engine/rhythmEngine";
+import { deleteRecordingBlob, loadRecordingBlob } from "@/services/localRecordingStorage";
 import type { StarterSessionId } from "@/features/library/data/starterSessions";
 import type {
   HarmoniumSessionCard,
@@ -51,6 +52,7 @@ interface LibraryState {
   setSearchQuery: (query: string) => void;
   setFilterMode: (mode: LibraryFilterMode) => void;
   setPlayingId: (id: string | null) => void;
+  hydrateRecordingBlobUrls: () => Promise<void>;
 }
 
 function createDefaultHarmoniumCard(): HarmoniumSessionCard {
@@ -102,6 +104,9 @@ function createDefaultTablaCard(): TablaSessionCard {
 
 function createDefaultSession(): PracticeSession {
   const now = new Date();
+  const harmonium = createDefaultHarmoniumCard();
+  const tabla = createDefaultTablaCard();
+  tabla.order = 1;
 
   return {
     id: crypto.randomUUID(),
@@ -109,7 +114,7 @@ function createDefaultSession(): PracticeSession {
     name: "New Session",
     description: "",
     status: "draft",
-    cards: [],
+    cards: [harmonium, tabla],
     lastPlayedAt: null,
     startedAt: now,
     endedAt: now,
@@ -259,6 +264,9 @@ export const useLibraryStore = create<LibraryState>()(
           const recordingToDelete = state.recordings.find((recording) => recording.id === id);
           if (recordingToDelete?.blobUrl) {
             URL.revokeObjectURL(recordingToDelete.blobUrl);
+          }
+          if (recordingToDelete?.storageUrl?.startsWith("local:")) {
+            void deleteRecordingBlob(recordingToDelete.storageUrl);
           }
           return { recordings: state.recordings.filter((recording) => recording.id !== id) };
         }),
@@ -596,6 +604,40 @@ export const useLibraryStore = create<LibraryState>()(
       setSearchQuery: (query) => set({ searchQuery: query }),
       setFilterMode: (mode) => set({ filterMode: mode }),
       setPlayingId: (id) => set({ playingId: id }),
+      hydrateRecordingBlobUrls: async () => {
+        const localRecordings = get().recordings.filter((recording) => recording.storageUrl?.startsWith("local:"));
+
+        for (const recording of localRecordings) {
+          if (!recording.storageUrl) continue;
+
+          try {
+            const blob = await loadRecordingBlob(recording.storageUrl);
+            if (!blob) continue;
+            const nextBlobUrl = URL.createObjectURL(blob);
+
+            set((state) => {
+              const current = state.recordings.find((entry) => entry.id === recording.id);
+              if (!current) {
+                URL.revokeObjectURL(nextBlobUrl);
+                return state;
+              }
+              if (current.blobUrl && current.blobUrl !== nextBlobUrl) {
+                URL.revokeObjectURL(current.blobUrl);
+              }
+
+              return {
+                recordings: state.recordings.map((entry) =>
+                  entry.id === recording.id
+                    ? { ...entry, blobUrl: nextBlobUrl }
+                    : entry
+                ),
+              };
+            });
+          } catch {
+            // Ignore local blob hydration failures for individual recordings.
+          }
+        }
+      },
     }),
     {
       name: "library-store",

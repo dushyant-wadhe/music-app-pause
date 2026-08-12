@@ -38,7 +38,7 @@ export function Slider({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full"
+        className="h-11 w-full md:h-8"
         aria-label={label}
       />
     </div>

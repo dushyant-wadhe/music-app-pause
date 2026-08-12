@@ -9,13 +9,24 @@ import type { DroneMode, HarmoniumToneMode, HarmoniumTuningMode, RootNote } from
 
 let ctx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
+let masterCompressor: DynamicsCompressorNode | null = null;
 
 interface ActiveVoice {
   osc1: OscillatorNode;
   osc2: OscillatorNode;
   osc3: OscillatorNode;
+  vibratoLfo?: OscillatorNode;
+  vibratoGain?: GainNode;
+  breathSrc?: AudioBufferSourceNode;
+  breathGain?: GainNode;
+  waveShaper?: WaveShaperNode;
+  inharmonicOsc?: OscillatorNode;
+  inharmonicGain?: GainNode;
+  transientOsc?: OscillatorNode;
+  transientGain?: GainNode;
   gainNode: GainNode;
   filterNode: BiquadFilterNode;
+  filterNode2?: BiquadFilterNode;
 }
 
 const voices = new Map<string, ActiveVoice>();
@@ -51,12 +62,48 @@ const JUST_RATIOS = [
   15 / 8,
 ];
 
+/** Soft, asymmetric saturation curve approximating free-reed buzz (not hard clipping). */
+function makeReedCurve(amount: number): Float32Array<ArrayBuffer> {
+  const samples = 1024;
+  const curve = new Float32Array(new ArrayBuffer(samples * Float32Array.BYTES_PER_ELEMENT));
+  for (let i = 0; i < samples; i++) {
+    const x = (i / (samples - 1)) * 2 - 1;
+    curve[i] = Math.tanh(x * amount) / Math.tanh(amount);
+  }
+  return curve;
+}
+
+function makeNoiseBuffer(c: AudioContext, durationS: number): AudioBuffer {
+  const length = Math.ceil(c.sampleRate * durationS);
+  const buffer = c.createBuffer(1, length, c.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+  return buffer;
+}
+
+/**
+ * Pressure-pitch coupling: measured free-reed behavior dips slightly at medium blowing
+ * pressure then rises again at high pressure (Cottingham, Reed & Busha, Forum Acusticum 1999).
+ * The exact curve shape isn't published, so this is an engineering approximation of that
+ * documented dip-then-rise trend, not a literature-sourced formula.
+ */
+function pressurePitchBiasCents(bellows: number): number {
+  return -4 * Math.sin(Math.PI * bellows) + 3 * bellows;
+}
+
 function getCtx(): AudioContext {
   if (!ctx) {
     ctx = new AudioContext({ latencyHint: "interactive" });
     masterGain = ctx.createGain();
     masterGain.gain.value = 0.8;
-    masterGain.connect(ctx.destination);
+    masterCompressor = ctx.createDynamicsCompressor();
+    masterCompressor.threshold.value = -18;
+    masterCompressor.knee.value = 24;
+    masterCompressor.ratio.value = 3;
+    masterCompressor.attack.value = 0.006;
+    masterCompressor.release.value = 0.15;
+    masterGain.connect(masterCompressor);
+    masterCompressor.connect(ctx.destination);
   }
   if (ctx.state === "suspended") ctx.resume();
   return ctx;
@@ -106,11 +153,16 @@ function createHarmoniumVoice(
     ? 1400 + safeBellows * 1400
     : 2200 + safeBellows * 2200;
 
-  // Low-pass filter for warmth
+  // Cascaded low-pass stages give a smoother, less buzzy rolloff than a single filter.
   const filter = ctx_.createBiquadFilter();
   filter.type = "lowpass";
   filter.frequency.value = brightness + frequency * (toneMode === "warm-reed" ? 0.45 : 0.8);
   filter.Q.value = toneMode === "warm-reed" ? 1.0 : 0.7;
+
+  const filter2 = ctx_.createBiquadFilter();
+  filter2.type = "lowpass";
+  filter2.frequency.value = filter.frequency.value * 1.6;
+  filter2.Q.value = 0.5;
 
   const gainNode = ctx_.createGain();
   gainNode.gain.setValueAtTime(0, ctx_.currentTime);
@@ -121,14 +173,20 @@ function createHarmoniumVoice(
     ctx_.currentTime + attackTime + decayTime
   );
 
+  // Small per-note detune spread avoids identical, machine-like repeats.
+  const humanizeCents = (Math.random() - 0.5) * 3;
+  const pressureBias = pressurePitchBiasCents(safeBellows);
+
   // Three oscillator stack with selectable tonal character.
   const osc1 = ctx_.createOscillator();
   osc1.type = toneMode === "warm-reed" ? "triangle" : "sawtooth";
   osc1.frequency.value = frequency;
+  osc1.detune.value = humanizeCents + pressureBias;
 
   const osc2 = ctx_.createOscillator();
   osc2.type = "sawtooth";
   osc2.frequency.value = frequency * (toneMode === "warm-reed" ? 1.0015 : 1.003);
+  osc2.detune.value = -humanizeCents + pressureBias;
 
   const osc3 = ctx_.createOscillator();
   osc3.type = toneMode === "warm-reed" ? "sine" : "square";
@@ -136,18 +194,92 @@ function createHarmoniumVoice(
   const osc3Gain = ctx_.createGain();
   osc3Gain.gain.value = toneMode === "warm-reed" ? 0.12 : 0.08;
 
-  osc1.connect(filter);
-  osc2.connect(filter);
+  // Reed buzz: soft asymmetric saturation on the fundamental pair, not the clean octave shimmer.
+  const waveShaper = ctx_.createWaveShaper();
+  waveShaper.curve = makeReedCurve(toneMode === "warm-reed" ? 1.4 : 2.4);
+  waveShaper.oversample = "2x";
+
+  // Weak inharmonic partial measured on real free reeds near 6.27x f0 (Cottingham et al., Forum Acusticum 1999).
+  const inharmonicOsc = ctx_.createOscillator();
+  inharmonicOsc.type = "sine";
+  inharmonicOsc.frequency.value = frequency * 6.27;
+  const inharmonicGain = ctx_.createGain();
+  inharmonicGain.gain.value = toneMode === "warm-reed" ? 0.02 : 0.035;
+
+  // Attack-transient burst: measured attack is dominated by a secondary torsional mode
+  // (Paquette & Cottingham, ASA 2003) distinct from the steady-state harmonic series.
+  const transientOsc = ctx_.createOscillator();
+  transientOsc.type = "sine";
+  transientOsc.frequency.value = frequency * 1.5;
+  const transientGain = ctx_.createGain();
+  transientGain.gain.setValueAtTime(0, ctx_.currentTime);
+  transientGain.gain.linearRampToValueAtTime(volume * safeVelocity * 0.18, ctx_.currentTime + 0.006);
+  transientGain.gain.exponentialRampToValueAtTime(0.001, ctx_.currentTime + 0.03);
+
+  // Pressure-driven pitch instability: slow wobble (hand-pump pressure) plus faster micro-jitter.
+  const vibratoLfo = ctx_.createOscillator();
+  vibratoLfo.type = "sine";
+  vibratoLfo.frequency.value = 0.7 + Math.random() * 1.1;
+  const vibratoGain = ctx_.createGain();
+  vibratoGain.gain.value = 2 + safeBellows * 4;
+  vibratoLfo.connect(vibratoGain);
+  vibratoGain.connect(osc1.detune);
+  vibratoGain.connect(osc2.detune);
+
+  // Bellows air noise: breathy hiss that swells in with the note, under the tone.
+  const breathSrc = ctx_.createBufferSource();
+  breathSrc.buffer = makeNoiseBuffer(ctx_, 2);
+  breathSrc.loop = true;
+  const breathFilter = ctx_.createBiquadFilter();
+  breathFilter.type = "bandpass";
+  breathFilter.frequency.value = toneMode === "warm-reed" ? 1100 : 1700;
+  breathFilter.Q.value = 0.6;
+  const breathGain = ctx_.createGain();
+  breathGain.gain.setValueAtTime(0, ctx_.currentTime);
+  breathGain.gain.linearRampToValueAtTime(volume * safeVelocity * safeBellows * 0.045, ctx_.currentTime + attackTime * 1.3);
+  breathSrc.connect(breathFilter);
+  breathFilter.connect(breathGain);
+  breathGain.connect(masterGain!);
+
+  osc1.connect(waveShaper);
+  osc2.connect(waveShaper);
+  waveShaper.connect(filter);
   osc3.connect(osc3Gain);
   osc3Gain.connect(filter);
-  filter.connect(gainNode);
+  inharmonicOsc.connect(inharmonicGain);
+  inharmonicGain.connect(filter);
+  transientOsc.connect(transientGain);
+  transientGain.connect(filter);
+  filter.connect(filter2);
+  filter2.connect(gainNode);
   gainNode.connect(masterGain!);
 
   osc1.start();
   osc2.start();
   osc3.start();
+  vibratoLfo.start();
+  breathSrc.start();
+  inharmonicOsc.start();
+  transientOsc.start();
+  transientOsc.stop(ctx_.currentTime + 0.04);
 
-  return { osc1, osc2, osc3, gainNode, filterNode: filter };
+  return {
+    osc1,
+    osc2,
+    osc3,
+    vibratoLfo,
+    vibratoGain,
+    breathSrc,
+    breathGain,
+    waveShaper,
+    inharmonicOsc,
+    inharmonicGain,
+    transientOsc,
+    transientGain,
+    gainNode,
+    filterNode: filter,
+    filterNode2: filter2,
+  };
 }
 
 export function playNote(
@@ -178,11 +310,17 @@ export function stopNote(note: string) {
   voice.gainNode.gain.setValueAtTime(voice.gainNode.gain.value, t);
   // Short release keeps the instrument responsive and avoids notes hanging after input ends.
   voice.gainNode.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+  voice.breathGain?.gain.cancelScheduledValues(t);
+  voice.breathGain?.gain.setValueAtTime(voice.breathGain.gain.value, t);
+  voice.breathGain?.gain.linearRampToValueAtTime(0.0001, t + 0.1);
   setTimeout(() => {
     try {
-      voice.osc1.stop(); voice.osc2.stop(); voice.osc3.stop();
-      voice.osc1.disconnect(); voice.osc2.disconnect(); voice.osc3.disconnect();
-      voice.filterNode.disconnect(); voice.gainNode.disconnect();
+      voice.osc1.stop(); voice.osc2.stop(); voice.osc3.stop(); voice.vibratoLfo?.stop(); voice.breathSrc?.stop(); voice.inharmonicOsc?.stop();
+      voice.osc1.disconnect(); voice.osc2.disconnect(); voice.osc3.disconnect(); voice.vibratoLfo?.disconnect(); voice.vibratoGain?.disconnect();
+      voice.breathSrc?.disconnect(); voice.breathGain?.disconnect(); voice.waveShaper?.disconnect();
+      voice.inharmonicOsc?.disconnect(); voice.inharmonicGain?.disconnect();
+      voice.transientOsc?.disconnect(); voice.transientGain?.disconnect();
+      voice.filterNode.disconnect(); voice.filterNode2?.disconnect(); voice.gainNode.disconnect();
     } catch { /* already stopped */ }
     if (voices.get(note) === voice) voices.delete(note);
   }, 150);
@@ -275,6 +413,23 @@ export function stopDrone() {
     }, 550);
   });
   droneVoices = [];
+}
+
+export function createHarmoniumCaptureTap() {
+  const ctx_ = getCtx();
+  const dest = ctx_.createMediaStreamDestination();
+  masterGain?.connect(dest);
+
+  return {
+    stream: dest.stream,
+    dispose: () => {
+      try {
+        masterGain?.disconnect(dest);
+      } catch {
+        // ignore disconnect errors when context graph changed
+      }
+    },
+  };
 }
 
 // ── Recording capture ────────────────────────────────────────────────────────
