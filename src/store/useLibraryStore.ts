@@ -3,8 +3,9 @@ import { persist } from "zustand/middleware";
 import { useHarmoniumStore } from "@/store/useHarmoniumStore";
 import { useTablaStore } from "@/store/useTablaStore";
 import { useTanpuraStore } from "@/store/useTanpuraStore";
-import { stopAllNotes, stopDrone } from "@/features/harmonium/engine/audioEngine";
+import { stopAllNotes } from "@/features/harmonium/engine/audioEngine";
 import { stopRhythm } from "@/features/tabla/engine/rhythmEngine";
+import { stopTanpuraDrone } from "@/features/tanpura/engine/audioEngine";
 import { deleteRecordingBlob, loadRecordingBlob } from "@/services/localRecordingStorage";
 import type { StarterSessionId } from "@/features/library/data/starterSessions";
 import type {
@@ -223,7 +224,7 @@ function accumulatedPracticeSeconds(session: PracticeSession, now = new Date()) 
 
 function stopPracticeAudio() {
   stopAllNotes();
-  stopDrone();
+  stopTanpuraDrone();
   stopRhythm();
   useTanpuraStore.getState().setMode("off");
   useHarmoniumStore.setState({ activeNotes: new Set() });
