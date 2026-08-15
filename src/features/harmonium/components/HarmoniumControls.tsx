@@ -23,8 +23,12 @@ export function HarmoniumControls() {
   const toneOptions: HarmoniumToneMode[] = ["basic", "warm-reed"];
 
   return (
-    <Card className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-4">
+    <Card className="harmonium-controls flex flex-col gap-4">
+      <div className="flex items-center justify-between border-b border-[#ead9c1] pb-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7b512b]">Instrument settings</p>
+        <span className="text-[10px] text-[#8d7c69]">MIDI ready</span>
+      </div>
+      <div className="grid grid-cols-2 gap-x-5 gap-y-4">
         <Slider
           label="Volume"
           value={Math.round(volume * 100)}
@@ -60,7 +64,7 @@ export function HarmoniumControls() {
       </div>
 
       <details className="border-t border-[#e3d7c2] pt-3">
-        <summary className="cursor-pointer text-xs font-medium text-[#5f6877]">More sound controls</summary>
+        <summary className="cursor-pointer text-xs font-medium text-[#5f6877]">Fine controls</summary>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <Slider
             label="Sustain"

@@ -114,7 +114,7 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
 
   return (
     <div
-      className="relative w-full select-none touch-none overflow-hidden"
+      className="harmonium-keybed relative w-full select-none touch-none overflow-hidden"
       aria-label="Harmonium keyboard"
       role="group"
     >
@@ -141,7 +141,7 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
             >
               <span
                 className={cn(
-                  "text-[9px] font-semibold pointer-events-none",
+                  "text-[9px] font-semibold tracking-wide pointer-events-none",
                   active ? "text-[#92400e]" : "text-[#64748B]"
                 )}
               >

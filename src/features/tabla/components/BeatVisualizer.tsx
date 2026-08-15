@@ -32,7 +32,7 @@ export function BeatVisualizer() {
   }, { groups: [], beatOffset: 0, taliCount: 1 }).groups;
 
   return (
-    <div className="flex flex-col gap-3" aria-label={`${selectedTaal} beat pattern`}>
+    <div className="tabla-beat-visualizer flex flex-col gap-3" aria-label={`${selectedTaal} beat pattern`}>
       <div className="flex items-start gap-3 flex-wrap">
         {vibhags.map(({ beats, isSam, isKhali, vi, marker }) => (
           <div key={vi} className="flex flex-col items-start gap-1">
@@ -63,18 +63,18 @@ export function BeatVisualizer() {
                   >
                     <div
                       className={cn(
-                        "w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold",
-                        "border-2 transition-all duration-75 select-none",
+                        "tabla-beat-cell w-10 h-10 rounded-md flex items-center justify-center text-xs font-bold",
+                        "border transition-all duration-75 select-none",
                         isActive &&
-                          "bg-[#f3ebdd] text-[#8a5a2b] border-[#d9c8ae] scale-105",
+                          "bg-[#6f3e21] text-[#fff8ed] border-[#51301d] scale-105",
                         !isActive && beat.isSam && !beat.isKhali &&
-                          "bg-[#f7f0e2] text-[#8a5a2b] border-[#d9c8ae]",
+                          "bg-[#f4e5cf] text-[#75451f] border-[#cfa675]",
                         !isActive && beat.isSam && beat.isKhali &&
-                          "bg-[#f7f0e2] text-[#8a5a2b]/60 border-[#e6d7c2]",
+                          "bg-[#f7eddf] text-[#8a5a2b]/60 border-[#e3ccb0]",
                         !isActive && !beat.isSam && beat.isKhali &&
-                          "bg-[#f9fafb] text-[#6b7280] border-[#d1d5db]",
+                          "bg-[#f9f4eb] text-[#817263] border-[#dfd1bd]",
                         !isActive && !beat.isSam && !beat.isKhali &&
-                          "bg-white text-[#374151] border-[#d1d5db]"
+                          "bg-[#fffaf3] text-[#55473d] border-[#dfd1bd]"
                       )}
                     >
                       {beat.syllable}

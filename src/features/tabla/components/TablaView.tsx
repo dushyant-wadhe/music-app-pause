@@ -11,6 +11,24 @@ import { Badge, Card } from "@/components/ui/Card";
 import { getCoreVariantsForTaal, getStylePacksForTaal, TAAL_LIST } from "../data/taals";
 import type { TaalName } from "@/types";
 
+function TablaPair({ isPlaying, beat }: { isPlaying: boolean; beat: number }) {
+  return (
+    <div className="tabla-stage" aria-label="Dayan and bayan tabla pair">
+      <div className="tabla-pair">
+        <div className={`tabla-drum tabla-dayan ${isPlaying ? "is-sounding" : ""}`} key={`dayan-${beat}`}>
+          <span className="tabla-rim"><span className="tabla-head"><span className="tabla-syahi" /></span></span>
+          <span className="tabla-body" />
+        </div>
+        <div className={`tabla-drum tabla-bayan ${isPlaying ? "is-sounding" : ""}`} key={`bayan-${beat}`}>
+          <span className="tabla-rim"><span className="tabla-head"><span className="tabla-syahi" /></span></span>
+          <span className="tabla-body" />
+        </div>
+      </div>
+      <p className="tabla-stage-caption">Dayan · Bayan</p>
+    </div>
+  );
+}
+
 export function TablaView() {
   const recordingController = useTablaRecordingController();
   const {
@@ -23,6 +41,7 @@ export function TablaView() {
     stylePackId, setStylePackId,
     variantId, setVariantId,
     isCountingIn, countInRemaining,
+    currentBeat,
     selectedTaal,
     setTaal,
   } = useTablaStore();
@@ -74,11 +93,12 @@ export function TablaView() {
   }
 
   return (
-    <div className="flex w-full flex-col gap-4 p-2">
-      <div className="flex items-start justify-between gap-3">
+    <div className="tabla-workspace flex w-full flex-col gap-4 p-2 md:py-4">
+      <div className="flex items-start justify-between gap-3 px-1">
         <div>
-          <h1 className="text-xl font-semibold text-[#1d232d]">Tabla</h1>
-          <p className="text-[11px] text-[#5f6877]">Set rhythm quickly and stay in flow.</p>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9a683b]">Riyaaz instrument</p>
+          <h1 className="font-serif text-2xl font-semibold tracking-tight text-[#2f2119]">Tabla</h1>
+          <p className="mt-1 text-[11px] text-[#75685b]">Set rhythm and stay in flow.</p>
         </div>
         {recordingController.isRecording ? (
           <Button variant="danger" size="sm" onClick={recordingController.handleStop}>
@@ -98,7 +118,7 @@ export function TablaView() {
         )}
       </div>
 
-      <Card glow={isPlaying} className="p-4">
+      <Card glow={isPlaying} className="tabla-performance p-4">
         <div className="mb-1.5 flex items-center justify-between">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-[#5f6877]">Current Taal</p>
@@ -118,7 +138,9 @@ export function TablaView() {
           </div>
         </div>
 
-        <div className="overflow-x-auto py-1">
+        <TablaPair isPlaying={isPlaying} beat={currentBeat} />
+
+        <div className="tabla-timeline overflow-x-auto py-3">
           <BeatVisualizer />
         </div>
 
@@ -151,7 +173,7 @@ export function TablaView() {
         </div>
       </Card>
 
-      <Card className="p-4">
+      <Card className="tabla-controls p-4">
         <div className="flex flex-col gap-3">
           <div>
             <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-[#5f6877]">Choose taal</p>

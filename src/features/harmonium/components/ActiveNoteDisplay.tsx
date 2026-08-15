@@ -9,16 +9,16 @@ export function ActiveNoteDisplay() {
   const notes = Array.from(activeNotes);
 
   return (
-    <div className="flex items-center gap-2 min-h-8 flex-wrap">
+    <div className="flex min-h-6 items-center gap-1.5 flex-wrap">
       {notes.length === 0 ? (
-        <span className="text-xs italic text-[#5f6877]">Play a key...</span>
+        <span className="text-[11px] italic text-[#8d7c69]">Ready</span>
       ) : (
         notes.map((note) => {
           const noteName = sargamForNote(note, rootNote);
           return (
             <span
               key={note}
-              className="rounded border border-[#c7ab83] bg-[#f6ead4] px-3 py-1 text-sm font-semibold text-[#724622]"
+              className="rounded-sm border border-[#caa06d] bg-[#f7e6cd] px-2 py-0.5 text-xs font-semibold text-[#724622] shadow-[inset_0_1px_0_rgba(255,255,255,.7)]"
             >
               {noteName}
             </span>

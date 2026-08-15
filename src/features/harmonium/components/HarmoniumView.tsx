@@ -6,17 +6,20 @@ import { HarmoniumControls } from "./HarmoniumControls";
 import { Button } from "@/components/ui/Button";
 import { RecordingControls, useRecordingController } from "./RecordingControls";
 import { ActiveNoteDisplay } from "./ActiveNoteDisplay";
+import { useHarmoniumStore } from "@/store/useHarmoniumStore";
 
 export function HarmoniumView() {
   const { handleNoteOn, handleNoteOff } = useHarmoniumEngine();
   const recordingController = useRecordingController();
+  const isPlaying = useHarmoniumStore((state) => state.activeNotes.size > 0);
 
   return (
-    <div className="flex w-full flex-col gap-5 px-2 py-3 md:py-4">
-      <div className="flex items-center justify-between gap-3">
+    <div className="harmonium-workspace flex w-full flex-col gap-5 px-2 py-3 md:py-5">
+      <div className="flex items-center justify-between gap-3 px-1">
         <div>
-          <h1 className="text-xl font-semibold text-[#1d232d]">Harmonium</h1>
-          <p className="text-xs text-[#5f6877]">A S D F G H J for white keys, W E T Y U for black keys.</p>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9a683b]">Riyaaz instrument</p>
+          <h1 className="font-serif text-2xl font-semibold tracking-tight text-[#2f2119]">Harmonium</h1>
+          <p className="mt-1 text-xs text-[#75685b]">A S D F G H J · W E T Y U</p>
         </div>
         {recordingController.isRecording ? (
           <Button variant="danger" size="sm" onClick={recordingController.handleStop}>
@@ -36,17 +39,21 @@ export function HarmoniumView() {
         )}
       </div>
 
-      <div className="rounded-lg border border-[var(--card-border)] bg-[var(--card-bg)] p-2 shadow-[0_8px_20px_rgba(74,47,18,0.1)]">
-        <div className="overflow-hidden rounded-md border border-[var(--surface-muted)] bg-[var(--surface-soft)]">
-          <div className="flex items-center justify-between border-b border-[var(--card-border)] bg-[var(--card-bg)] px-2.5 py-1.5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--ink-soft)]">Performance</p>
+      <section className="harmonium-cabinet" aria-label="Harmonium performance area">
+        <div className="harmonium-cabinet-rail" aria-hidden="true" />
+        <div className="harmonium-keywell">
+          <div className="flex items-center justify-between border-b border-[#d4b184]/60 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#74451f]">Manual</p>
             <ActiveNoteDisplay />
           </div>
-          <div className="p-3 pb-1">
+          <div className="p-3 pb-2 md:p-4">
             <HarmoniumKeyboard onNoteOn={handleNoteOn} onNoteOff={handleNoteOff} />
           </div>
         </div>
-      </div>
+        <div className={`harmonium-bellows ${isPlaying ? "is-playing" : ""}`} aria-hidden="true">
+          <span /><span /><span /><span /><span /><span />
+        </div>
+      </section>
 
       <HarmoniumControls />
 

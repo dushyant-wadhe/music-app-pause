@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { MiniAudioPlayer } from "@/features/harmonium/components/RecordingControls";
-import { startAudioCapture, stopAudioCapture } from "@/features/harmonium/engine/audioEngine";
+import { startTanpuraAudioCapture, stopTanpuraAudioCapture } from "@/features/tanpura/engine/audioEngine";
 import { saveBlobUrlAsRecording } from "@/services/localRecordingStorage";
 import { useLibraryStore } from "@/store/useLibraryStore";
 import { useProfileStore } from "@/store/useProfileStore";
@@ -66,7 +66,7 @@ export function useTanpuraRecordingController(): TanpuraRecordingController {
     setError(null);
     setIsStarting(true);
     try {
-      await startAudioCapture((message) => {
+      await startTanpuraAudioCapture((message) => {
         setIsRecording(false);
         setError(message);
       });
@@ -82,7 +82,7 @@ export function useTanpuraRecordingController(): TanpuraRecordingController {
   async function handleStop() {
     setIsRecording(false);
     setDurationSeconds(Math.max(1, Math.round((Date.now() - startedAt) / 1000)));
-    const blob = await stopAudioCapture();
+    const blob = await stopTanpuraAudioCapture();
     if (!blob || blob.size === 0) {
       setError("No audio was captured. Please try recording again.");
       return;

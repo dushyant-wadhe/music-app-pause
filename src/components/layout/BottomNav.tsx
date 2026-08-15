@@ -29,6 +29,10 @@ const TOOL_TABS = [
     href: "/tanpura",
     label: "Tanpura",
   },
+  {
+    href: "/flute",
+    label: "Flute",
+  },
 ];
 
 export function BottomNav() {
@@ -72,12 +76,12 @@ export function BottomNav() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[var(--card-border)] bg-[#fffcf7]/92 backdrop-blur-md" aria-label="Main navigation">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-3 py-3 md:px-5">
+    <header className="riyaaz-nav sticky top-0 z-30" aria-label="Main navigation">
+      <div className="riyaaz-nav-inner mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-3 py-3 md:px-5">
         <Link
           href="/"
           onClick={() => setToolsOpen(false)}
-          className="group relative flex items-center gap-2.5 px-0.5 py-0.5 text-[var(--app-fg)]"
+          className="riyaaz-nav-brand group relative flex items-center gap-2.5 px-0.5 py-0.5 text-[var(--app-fg)]"
           aria-label="Riyaaz home"
         >
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--accent-700)] transition-colors group-hover:text-[var(--accent-600)]">
@@ -102,7 +106,7 @@ export function BottomNav() {
             aria-label={MAIN_TABS[0].label}
             aria-current={pathname === "/sessions" || pathname.startsWith("/session") ? "page" : undefined}
             className={cn(
-              "flex min-h-10 items-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors md:min-h-8",
+              "riyaaz-nav-link flex min-h-10 items-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors md:min-h-8",
               pathname === "/sessions" || pathname.startsWith("/session")
                 ? "text-[var(--accent-700)]"
                 : "text-[var(--ink-soft)] hover:text-[var(--app-fg)]"
@@ -123,7 +127,7 @@ export function BottomNav() {
               aria-expanded={toolsOpen}
               onClick={() => setToolsOpen((current) => !current)}
               className={cn(
-                "flex min-h-10 cursor-pointer list-none items-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors md:min-h-8",
+                "riyaaz-nav-link flex min-h-10 cursor-pointer list-none items-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors md:min-h-8",
                 isToolRoute
                   ? "text-[var(--accent-700)]"
                   : "text-[var(--ink-soft)] hover:text-[var(--app-fg)]"
@@ -136,7 +140,7 @@ export function BottomNav() {
             {toolsOpen && (
             <>
             <div className="absolute right-0 top-full h-3 w-48" aria-hidden="true" />
-            <div className="absolute right-0 top-[calc(100%+10px)] z-[100] w-48 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] p-1.5 shadow-[0_18px_36px_rgba(74,47,18,0.18)]">
+            <div className="riyaaz-tools-menu absolute right-0 top-[calc(100%+10px)] z-[100] w-48 p-1.5">
               {TOOL_TABS.map(({ href, label }) => {
                 const active = pathname.startsWith(href);
                 return (
@@ -145,7 +149,7 @@ export function BottomNav() {
                     href={href}
                     onClick={() => setToolsOpen(false)}
                     className={cn(
-                      "block rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
+                      "riyaaz-tools-link block rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
                       active
                         ? "bg-[var(--accent-700)] text-[#fffdf9]"
                         : "text-[var(--ink-soft)] hover:bg-[var(--surface-soft)]"
@@ -166,7 +170,7 @@ export function BottomNav() {
             aria-label={MAIN_TABS[1].label}
             aria-current={pathname.startsWith(MAIN_TABS[1].href) ? "page" : undefined}
             className={cn(
-              "flex min-h-10 items-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors md:min-h-8",
+              "riyaaz-nav-link flex min-h-10 items-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors md:min-h-8",
               pathname.startsWith(MAIN_TABS[1].href)
                 ? "text-[var(--accent-700)]"
                 : "text-[var(--ink-soft)] hover:text-[var(--app-fg)]"

@@ -12,13 +12,15 @@ const ROOT_NOTES: RootNote[] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#",
 export function TanpuraView() {
   const recordingController = useTanpuraRecordingController();
   const { mode, rootNote, octave, volume, setMode, setRootNote, setOctave, setVolume } = useTanpuraStore();
+  const isPlaying = mode !== "off";
 
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
-      <div className="flex items-start justify-between gap-3">
+    <div className="tanpura-workspace mx-auto flex w-full max-w-xl flex-col gap-5 px-2 py-3 md:py-5">
+      <div className="flex items-start justify-between gap-3 px-1">
         <div>
-          <h1 className="text-xl font-semibold text-[#1d232d]">Tanpura</h1>
-          <p className="text-xs text-[#5f6877]">Set your drone and hold pitch with confidence.</p>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9a683b]">Riyaaz instrument</p>
+          <h1 className="font-serif text-2xl font-semibold tracking-tight text-[#2f2119]">Tanpura</h1>
+          <p className="mt-1 text-xs text-[#75685b]">A quiet foundation for your riyāz.</p>
         </div>
         {recordingController.isRecording ? (
           <Button variant="danger" size="sm" onClick={recordingController.handleStop}>
@@ -37,10 +39,19 @@ export function TanpuraView() {
           </Button>
         )}
       </div>
-      <Card className="flex flex-col gap-4 p-4">
-        <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[#5f6877]">Drone</p>
-          <div className="flex flex-wrap gap-2">
+      <div className="tanpura-main-grid">
+      <section className="tanpura-stage" aria-label="Tanpura drone instrument">
+        <div className={`tanpura-instrument ${isPlaying ? "is-playing" : ""}`} aria-hidden="true">
+          <div className="tanpura-neck"><span className="tanpura-peg peg-one" /><span className="tanpura-peg peg-two" /><span className="tanpura-peg peg-three" /><span className="tanpura-peg peg-four" /></div>
+          <div className="tanpura-body"><span className="tanpura-rosette" /><span className="tanpura-bridge" /><div className="tanpura-strings"><i /><i /><i /><i /></div></div>
+        </div>
+        <p className="tanpura-stage-caption">{isPlaying ? "Drone sustaining" : "Drone at rest"}</p>
+      </section>
+
+      <Card className="tanpura-controls flex flex-col gap-4 p-4">
+        <div className="text-center">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#7b512b]">Drone</p>
+          <div className="flex flex-wrap justify-center gap-2">
             {(["off", "sa", "sa+pa"] as const).map((option) => (
               <Button key={option} size="sm" variant={mode === option ? "primary" : "outline"} onClick={() => setMode(option)}>
                 {option === "off" ? "Off" : option === "sa" ? "Sa" : "Sa + Pa"}
@@ -62,6 +73,7 @@ export function TanpuraView() {
           </div>
         </details>
       </Card>
+      </div>
 
       <TanpuraRecordingControls controller={recordingController} />
     </div>
