@@ -11,10 +11,18 @@ let schedulerTimer: ReturnType<typeof setTimeout> | null = null;
 const BOL_SAMPLE_FILES: Record<string, string> = {
   dha: "/sounds/tabla/dha.wav",
   dhin: "/sounds/tabla/dhin.wav",
+  din: "/sounds/tabla/dhin.wav",
+  dhi: "/sounds/tabla/dhin.wav",
   tin: "/sounds/tabla/tin.wav",
+  ti: "/sounds/tabla/tin.wav",
   na: "/sounds/tabla/na.wav",
+  ta: "/sounds/tabla/na.wav",
   re: "/sounds/tabla/re.wav",
   ka: "/sounds/tabla/ka.wav",
+  ke: "/sounds/tabla/ka.wav",
+  ge: "/sounds/tabla/ka.wav",
+  ki: "/sounds/tabla/kat.wav",
+  tu: "/sounds/tabla/tun.wav",
   tun: "/sounds/tabla/tun.wav",
   kat: "/sounds/tabla/kat.wav",
 };

@@ -80,3 +80,20 @@ export function stopFluteNote(note: string) {
 }
 
 export function stopAllFluteNotes() { Array.from(voices.keys()).forEach(stopFluteNote); }
+
+export function createFluteCaptureTap() {
+  const audioContext = getCtx();
+  const dest = audioContext.createMediaStreamDestination();
+  masterGain?.connect(dest);
+
+  return {
+    stream: dest.stream,
+    dispose: () => {
+      try {
+        masterGain?.disconnect(dest);
+      } catch {
+        // ignore disconnect errors when context graph changed
+      }
+    },
+  };
+}

@@ -266,8 +266,20 @@ export const useLibraryStore = create<LibraryState>()(
           if (recordingToDelete?.blobUrl) {
             URL.revokeObjectURL(recordingToDelete.blobUrl);
           }
+          if (recordingToDelete?.stemBlobUrls) {
+            Object.values(recordingToDelete.stemBlobUrls).forEach((blobUrl) => {
+              if (blobUrl) URL.revokeObjectURL(blobUrl);
+            });
+          }
           if (recordingToDelete?.storageUrl?.startsWith("local:")) {
             void deleteRecordingBlob(recordingToDelete.storageUrl);
+          }
+          if (recordingToDelete?.stemStorageUrls) {
+            Object.values(recordingToDelete.stemStorageUrls).forEach((storageUrl) => {
+              if (storageUrl?.startsWith("local:")) {
+                void deleteRecordingBlob(storageUrl);
+              }
+            });
           }
           return { recordings: state.recordings.filter((recording) => recording.id !== id) };
         }),
@@ -606,37 +618,74 @@ export const useLibraryStore = create<LibraryState>()(
       setFilterMode: (mode) => set({ filterMode: mode }),
       setPlayingId: (id) => set({ playingId: id }),
       hydrateRecordingBlobUrls: async () => {
-        const localRecordings = get().recordings.filter((recording) => recording.storageUrl?.startsWith("local:"));
+        const localRecordings = get().recordings.filter((recording) =>
+          recording.storageUrl?.startsWith("local:")
+          || Object.values(recording.stemStorageUrls ?? {}).some((url) => url?.startsWith("local:"))
+        );
 
         for (const recording of localRecordings) {
-          if (!recording.storageUrl) continue;
+          let nextBlobUrl: string | null = null;
+          const nextStemBlobUrls: Partial<Record<"harmonium" | "tabla" | "tanpura" | "flute", string>> = {};
 
-          try {
-            const blob = await loadRecordingBlob(recording.storageUrl);
-            if (!blob) continue;
-            const nextBlobUrl = URL.createObjectURL(blob);
-
-            set((state) => {
-              const current = state.recordings.find((entry) => entry.id === recording.id);
-              if (!current) {
-                URL.revokeObjectURL(nextBlobUrl);
-                return state;
-              }
-              if (current.blobUrl && current.blobUrl !== nextBlobUrl) {
-                URL.revokeObjectURL(current.blobUrl);
-              }
-
-              return {
-                recordings: state.recordings.map((entry) =>
-                  entry.id === recording.id
-                    ? { ...entry, blobUrl: nextBlobUrl }
-                    : entry
-                ),
-              };
-            });
-          } catch {
-            // Ignore local blob hydration failures for individual recordings.
+          if (recording.storageUrl?.startsWith("local:")) {
+            try {
+              const blob = await loadRecordingBlob(recording.storageUrl);
+              if (blob) nextBlobUrl = URL.createObjectURL(blob);
+            } catch {
+              // Ignore local blob hydration failures for individual recordings.
+            }
           }
+
+          const stemEntries = Object.entries(recording.stemStorageUrls ?? {});
+          for (const [instrument, storageUrl] of stemEntries) {
+            if (!storageUrl?.startsWith("local:")) continue;
+            try {
+              const blob = await loadRecordingBlob(storageUrl);
+              if (blob) {
+                nextStemBlobUrls[instrument as "harmonium" | "tabla" | "tanpura" | "flute"] = URL.createObjectURL(blob);
+              }
+            } catch {
+              // Ignore individual stem hydration failures.
+            }
+          }
+
+          if (!nextBlobUrl && Object.keys(nextStemBlobUrls).length === 0) continue;
+
+          set((state) => {
+            const current = state.recordings.find((entry) => entry.id === recording.id);
+            if (!current) {
+              if (nextBlobUrl) URL.revokeObjectURL(nextBlobUrl);
+              Object.values(nextStemBlobUrls).forEach((url) => URL.revokeObjectURL(url));
+              return state;
+            }
+            if (nextBlobUrl && current.blobUrl && current.blobUrl !== nextBlobUrl) {
+              URL.revokeObjectURL(current.blobUrl);
+            }
+
+            const mergedStemBlobUrls = {
+              ...(current.stemBlobUrls ?? {}),
+              ...nextStemBlobUrls,
+            };
+
+            Object.entries(nextStemBlobUrls).forEach(([instrument, nextUrl]) => {
+              const currentUrl = current.stemBlobUrls?.[instrument as "harmonium" | "tabla" | "tanpura" | "flute"];
+              if (currentUrl && currentUrl !== nextUrl) {
+                URL.revokeObjectURL(currentUrl);
+              }
+            });
+
+            return {
+              recordings: state.recordings.map((entry) =>
+                entry.id === recording.id
+                  ? {
+                      ...entry,
+                      blobUrl: nextBlobUrl ?? entry.blobUrl,
+                      stemBlobUrls: Object.keys(mergedStemBlobUrls).length ? mergedStemBlobUrls : entry.stemBlobUrls,
+                    }
+                  : entry
+              ),
+            };
+          });
         }
       },
     }),

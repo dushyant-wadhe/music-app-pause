@@ -10,13 +10,18 @@ const NOTE_TO_SEMITONE: Record<RootNote, number> = {
 
 let ctx: AudioContext | null = null;
 let samplePromise: Promise<AudioBuffer> | null = null;
+let outputGain: GainNode | null = null;
 let drone: { gainNode: GainNode; sources: AudioBufferSourceNode[]; timers: ReturnType<typeof setTimeout>[]; stopped: boolean } | null = null;
 let mediaRecorder: MediaRecorder | null = null;
 let recordedChunks: BlobPart[] = [];
 let recordingDest: MediaStreamAudioDestinationNode | null = null;
 
 function getCtx(): AudioContext {
-  if (!ctx) ctx = new AudioContext({ latencyHint: "interactive" });
+  if (!ctx) {
+    ctx = new AudioContext({ latencyHint: "interactive" });
+    outputGain = ctx.createGain();
+    outputGain.connect(ctx.destination);
+  }
   if (ctx.state === "suspended") void ctx.resume();
   return ctx;
 }
@@ -91,7 +96,7 @@ export function startTanpuraDrone(mode: "sa" | "sa+pa", octave: number, volume: 
   const gainNode = audioContext.createGain();
   gainNode.gain.setValueAtTime(0, audioContext.currentTime);
   gainNode.gain.linearRampToValueAtTime(Math.max(0, Math.min(1, volume)), audioContext.currentTime + 0.08);
-  gainNode.connect(audioContext.destination);
+  gainNode.connect(outputGain!);
   const state = { gainNode, sources: [] as AudioBufferSourceNode[], timers: [] as ReturnType<typeof setTimeout>[], stopped: false };
   drone = state;
 
@@ -128,13 +133,18 @@ export function stopTanpuraDrone() {
 export function createTanpuraCaptureTap() {
   const audioContext = getCtx();
   const dest = audioContext.createMediaStreamDestination();
-  drone?.gainNode.connect(dest);
-  return { stream: dest.stream, dispose: () => { try { drone?.gainNode.disconnect(dest); } catch { /* ignore */ } } };
+  outputGain?.connect(dest);
+  return {
+    stream: dest.stream,
+    dispose: () => {
+      try { outputGain?.disconnect(dest); } catch { /* ignore */ }
+    },
+  };
 }
 
 function clearAudioCapture() {
   if (!recordingDest) return;
-  try { drone?.gainNode.disconnect(recordingDest); } catch { /* ignore */ }
+  try { outputGain?.disconnect(recordingDest); } catch { /* ignore */ }
   recordingDest = null;
 }
 
@@ -144,7 +154,7 @@ export async function startTanpuraAudioCapture(onError?: (message: string) => vo
   if (!drone) throw new Error("Start the tanpura drone before recording.");
   clearAudioCapture();
   recordingDest = getCtx().createMediaStreamDestination();
-  drone.gainNode.connect(recordingDest);
+  outputGain?.connect(recordingDest);
   recordedChunks = [];
   const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
   try { mediaRecorder = new MediaRecorder(recordingDest.stream, { mimeType }); }

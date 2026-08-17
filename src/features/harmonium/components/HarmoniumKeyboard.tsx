@@ -134,8 +134,6 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
               )}
               style={{ height: 120 }}
               draggable={false}
-              role="button"
-              aria-hidden="true"
               aria-label={`${sargamForNote(key.note, rootNote)} octave ${key.octave}`}
               {...pointerHandlers(key.note)}
             >
@@ -165,8 +163,6 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
                 top:    0,
               }}
               draggable={false}
-              role="button"
-              aria-hidden="true"
               aria-label={`${key.label} octave ${key.octave}`}
               {...pointerHandlers(key.note)}
             />

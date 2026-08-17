@@ -8,18 +8,28 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { LoaderState } from "@/components/ui/LoaderState";
 import { MiniAudioPlayer } from "@/features/harmonium/components/RecordingControls";
+import { FluteView } from "@/features/flute/components/FluteView";
+import { createFluteCaptureTap } from "@/features/flute/engine/audioEngine";
 import { HarmoniumView } from "@/features/harmonium/components/HarmoniumView";
 import { createHarmoniumCaptureTap } from "@/features/harmonium/engine/audioEngine";
 import { TablaView } from "@/features/tabla/components/TablaView";
 import { createTablaCaptureTap } from "@/features/tabla/engine/rhythmEngine";
 import { TanpuraView } from "@/features/tanpura/components/TanpuraView";
-import { saveBlobUrlAsRecording } from "@/services/localRecordingStorage";
+import { createTanpuraCaptureTap } from "@/features/tanpura/engine/audioEngine";
+import { saveBlobUrlAsRecording, saveRecordingBlob } from "@/services/localRecordingStorage";
+import { useFluteStore } from "@/store/useFluteStore";
+import { useHarmoniumStore } from "@/store/useHarmoniumStore";
 import { useLibraryStore } from "@/store/useLibraryStore";
-import type { PracticeSessionCard } from "@/types";
+import { useTablaStore } from "@/store/useTablaStore";
+import { useTanpuraStore } from "@/store/useTanpuraStore";
+import type { PracticeSessionCard, SessionInstrument } from "@/types";
 
 interface SessionRunViewProps {
   sessionId: string;
 }
+
+type SessionTool = PracticeSessionCard["type"] | "tanpura" | "flute";
+const STEM_INSTRUMENTS: SessionInstrument[] = ["harmonium", "tabla", "tanpura", "flute"];
 
 export function SessionRunView({ sessionId }: SessionRunViewProps) {
   const router = useRouter();
@@ -28,7 +38,7 @@ export function SessionRunView({ sessionId }: SessionRunViewProps) {
   const playSession = useLibraryStore((state) => state.playSession);
   const updateSession = useLibraryStore((state) => state.updateSession);
   const addRecording = useLibraryStore((state) => state.addRecording);
-  const [activeTool, setActiveTool] = useState<PracticeSessionCard["type"] | "tanpura">("harmonium");
+  const [activeTool, setActiveTool] = useState<SessionTool>("harmonium");
   const [isSessionRecording, setIsSessionRecording] = useState(false);
   const [isSessionRecordingPaused, setIsSessionRecordingPaused] = useState(false);
   const [recordingBlobUrl, setRecordingBlobUrl] = useState<string | null>(null);
@@ -45,6 +55,18 @@ export function SessionRunView({ sessionId }: SessionRunViewProps) {
   const captureTapsRef = useRef<Array<{ dispose: () => void }>>([]);
   const mixContextRef = useRef<AudioContext | null>(null);
   const mixSourceNodesRef = useRef<MediaStreamAudioSourceNode[]>([]);
+  const stemRecordersRef = useRef<Partial<Record<SessionInstrument, MediaRecorder>>>({});
+  const stemChunksRef = useRef<Partial<Record<SessionInstrument, BlobPart[]>>>({});
+  const stemBlobsRef = useRef<Partial<Record<SessionInstrument, Blob>>>({});
+  const stemStopPromiseRef = useRef<Promise<void> | null>(null);
+  const masterBlobRef = useRef<Blob | null>(null);
+  const activityIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activitySecondsRef = useRef<Record<SessionInstrument, number>>({
+    harmonium: 0,
+    tabla: 0,
+    tanpura: 0,
+    flute: 0,
+  });
 
   const session = sessions.find((entry) => entry.id === sessionId);
 
@@ -58,6 +80,11 @@ export function SessionRunView({ sessionId }: SessionRunViewProps) {
   useEffect(() => {
     return () => {
       mediaRecorderRef.current?.stop();
+      Object.values(stemRecordersRef.current).forEach((recorder) => {
+        if (recorder?.state !== "inactive") {
+          try { recorder.stop(); } catch { /* ignore cleanup errors */ }
+        }
+      });
       recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
       captureTapsRef.current.forEach((tap) => tap.dispose());
       captureTapsRef.current = [];
@@ -69,6 +96,10 @@ export function SessionRunView({ sessionId }: SessionRunViewProps) {
         }
       });
       mixSourceNodesRef.current = [];
+      if (activityIntervalRef.current) {
+        clearInterval(activityIntervalRef.current);
+        activityIntervalRef.current = null;
+      }
       void mixContextRef.current?.close();
       mixContextRef.current = null;
     };
@@ -85,17 +116,56 @@ export function SessionRunView({ sessionId }: SessionRunViewProps) {
 
       const harmoniumTap = createHarmoniumCaptureTap();
       const tablaTap = createTablaCaptureTap();
+      const tanpuraTap = createTanpuraCaptureTap();
+      const fluteTap = createFluteCaptureTap();
       const mixContext = new AudioContext({ latencyHint: "interactive" });
       const mixDestination = mixContext.createMediaStreamDestination();
       const harmoniumSource = mixContext.createMediaStreamSource(harmoniumTap.stream);
       const tablaSource = mixContext.createMediaStreamSource(tablaTap.stream);
+      const tanpuraSource = mixContext.createMediaStreamSource(tanpuraTap.stream);
+      const fluteSource = mixContext.createMediaStreamSource(fluteTap.stream);
       harmoniumSource.connect(mixDestination);
       tablaSource.connect(mixDestination);
+      tanpuraSource.connect(mixDestination);
+      fluteSource.connect(mixDestination);
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm";
+
+      const stemStreams: Record<SessionInstrument, MediaStream> = {
+        harmonium: harmoniumTap.stream,
+        tabla: tablaTap.stream,
+        tanpura: tanpuraTap.stream,
+        flute: fluteTap.stream,
+      };
+
+      stemRecordersRef.current = {};
+      stemChunksRef.current = {};
+      stemBlobsRef.current = {};
+      masterBlobRef.current = null;
+      stemStopPromiseRef.current = null;
+
+      STEM_INSTRUMENTS.forEach((instrument) => {
+        const recorder = new MediaRecorder(stemStreams[instrument], { mimeType });
+        stemChunksRef.current[instrument] = [];
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            stemChunksRef.current[instrument]?.push(event.data);
+          }
+        };
+        recorder.onstop = () => {
+          const chunks = stemChunksRef.current[instrument] ?? [];
+          const stemBlob = new Blob(chunks, { type: recorder.mimeType || mimeType });
+          if (stemBlob.size > 0) {
+            stemBlobsRef.current[instrument] = stemBlob;
+          }
+        };
+        stemRecordersRef.current[instrument] = recorder;
+      });
 
       const recorder = new MediaRecorder(mixDestination.stream, {
-        mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-          ? "audio/webm;codecs=opus"
-          : "audio/webm",
+        mimeType,
       });
       recordingChunksRef.current = [];
       recordingStartedAtRef.current = Date.now();
@@ -103,9 +173,22 @@ export function SessionRunView({ sessionId }: SessionRunViewProps) {
       recordingPausedMsRef.current = 0;
       recordingStreamRef.current = mixDestination.stream;
       mediaRecorderRef.current = recorder;
-      captureTapsRef.current = [harmoniumTap, tablaTap];
+      captureTapsRef.current = [harmoniumTap, tablaTap, tanpuraTap, fluteTap];
       mixContextRef.current = mixContext;
-      mixSourceNodesRef.current = [harmoniumSource, tablaSource];
+      mixSourceNodesRef.current = [harmoniumSource, tablaSource, tanpuraSource, fluteSource];
+      activitySecondsRef.current = { harmonium: 0, tabla: 0, tanpura: 0, flute: 0 };
+
+      activityIntervalRef.current = setInterval(() => {
+        if (mediaRecorderRef.current?.state !== "recording") return;
+        const harmoniumActive = useHarmoniumStore.getState().activeNotes.size > 0;
+        const tablaActive = useTablaStore.getState().isPlaying;
+        const tanpuraActive = useTanpuraStore.getState().mode !== "off";
+        const fluteActive = useFluteStore.getState().activeNotes.size > 0;
+        if (harmoniumActive) activitySecondsRef.current.harmonium += 1;
+        if (tablaActive) activitySecondsRef.current.tabla += 1;
+        if (tanpuraActive) activitySecondsRef.current.tanpura += 1;
+        if (fluteActive) activitySecondsRef.current.flute += 1;
+      }, 1000);
 
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) recordingChunksRef.current.push(event.data);
@@ -114,6 +197,7 @@ export function SessionRunView({ sessionId }: SessionRunViewProps) {
       recorder.onstop = () => {
         const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "audio/webm" });
         if (blob.size > 0 && session) {
+          masterBlobRef.current = blob;
           const startedAt = recordingStartedAtRef.current ?? Date.now();
           const pausedMs = recordingPausedMsRef.current;
           const durationSeconds = Math.max(1, Math.round((Date.now() - startedAt - pausedMs) / 1000));
@@ -140,12 +224,17 @@ export function SessionRunView({ sessionId }: SessionRunViewProps) {
           }
         });
         mixSourceNodesRef.current = [];
+        if (activityIntervalRef.current) {
+          clearInterval(activityIntervalRef.current);
+          activityIntervalRef.current = null;
+        }
         void mixContextRef.current?.close();
         mixContextRef.current = null;
         setIsSessionRecordingPaused(false);
         setIsSessionRecording(false);
       };
 
+      Object.values(stemRecordersRef.current).forEach((stemRecorder) => stemRecorder?.start(1000));
       recorder.start(1000);
       setIsSessionRecording(true);
       setIsSessionRecordingPaused(false);
@@ -160,6 +249,15 @@ export function SessionRunView({ sessionId }: SessionRunViewProps) {
         }
       });
       mixSourceNodesRef.current = [];
+      if (activityIntervalRef.current) {
+        clearInterval(activityIntervalRef.current);
+        activityIntervalRef.current = null;
+      }
+      stemRecordersRef.current = {};
+      stemChunksRef.current = {};
+      stemBlobsRef.current = {};
+      masterBlobRef.current = null;
+      stemStopPromiseRef.current = null;
       void mixContextRef.current?.close();
       mixContextRef.current = null;
       setRecordError("Could not start recording.");
@@ -169,6 +267,9 @@ export function SessionRunView({ sessionId }: SessionRunViewProps) {
   function pauseSessionRecording() {
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.pause();
+      Object.values(stemRecordersRef.current).forEach((recorder) => {
+        if (recorder?.state === "recording") recorder.pause();
+      });
       recordingPausedAtRef.current = Date.now();
       setIsSessionRecordingPaused(true);
     }
@@ -177,6 +278,9 @@ export function SessionRunView({ sessionId }: SessionRunViewProps) {
   function resumeSessionRecording() {
     if (mediaRecorderRef.current?.state === "paused") {
       mediaRecorderRef.current.resume();
+      Object.values(stemRecordersRef.current).forEach((recorder) => {
+        if (recorder?.state === "paused") recorder.resume();
+      });
       if (recordingPausedAtRef.current) {
         recordingPausedMsRef.current += Date.now() - recordingPausedAtRef.current;
       }
@@ -190,6 +294,23 @@ export function SessionRunView({ sessionId }: SessionRunViewProps) {
       recordingPausedMsRef.current += Date.now() - recordingPausedAtRef.current;
       recordingPausedAtRef.current = null;
     }
+
+    const stemStops = Object.values(stemRecordersRef.current).map((recorder) =>
+      new Promise<void>((resolve) => {
+        if (!recorder || recorder.state === "inactive") {
+          resolve();
+          return;
+        }
+        recorder.addEventListener("stop", () => resolve(), { once: true });
+        try {
+          recorder.stop();
+        } catch {
+          resolve();
+        }
+      })
+    );
+    stemStopPromiseRef.current = Promise.all(stemStops).then(() => undefined);
+
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
     } else if (mediaRecorderRef.current?.state === "paused") {
@@ -204,18 +325,46 @@ export function SessionRunView({ sessionId }: SessionRunViewProps) {
     setRecordingBlobUrl(null);
     setRecordingName("");
     setRecordingDurationSeconds(0);
+    masterBlobRef.current = null;
+    stemBlobsRef.current = {};
+    stemChunksRef.current = {};
+    stemRecordersRef.current = {};
+    stemStopPromiseRef.current = null;
   }
 
   async function saveSessionRecording() {
     if (!recordingBlobUrl || !session) return;
 
+    if (stemStopPromiseRef.current) {
+      await stemStopPromiseRef.current;
+      stemStopPromiseRef.current = null;
+    }
+
     const id = crypto.randomUUID();
     let storageUrl: string | null = null;
     try {
-      storageUrl = await saveBlobUrlAsRecording(id, recordingBlobUrl);
+      if (masterBlobRef.current) {
+        storageUrl = await saveRecordingBlob(id, masterBlobRef.current);
+      } else {
+        storageUrl = await saveBlobUrlAsRecording(id, recordingBlobUrl);
+      }
     } catch {
       storageUrl = null;
     }
+
+    const stemStorageUrls: Partial<Record<SessionInstrument, string>> = {};
+    for (const instrument of STEM_INSTRUMENTS) {
+      const stemBlob = stemBlobsRef.current[instrument];
+      if (!stemBlob) continue;
+      try {
+        const url = await saveRecordingBlob(`${id}-${instrument}`, stemBlob);
+        if (url) stemStorageUrls[instrument] = url;
+      } catch {
+        // Ignore individual stem save failures and keep master recording intact.
+      }
+    }
+
+    const capturedInstruments = STEM_INSTRUMENTS.filter((instrument) => Boolean(stemBlobsRef.current[instrument]));
 
     addRecording({
       id,
@@ -226,14 +375,21 @@ export function SessionRunView({ sessionId }: SessionRunViewProps) {
       storageUrl,
       isFavorite: false,
       notes: "",
-      tags: ["session", `session:${session.id}`],
+      tags: ["session", `session:${session.id}`, ...capturedInstruments.map((instrument) => `tool:${instrument}`)],
       instrument: "other",
       blobUrl: recordingBlobUrl,
+      stemStorageUrls,
+      capturedInstruments,
+      instrumentActivitySeconds: { ...activitySecondsRef.current },
     });
 
     setRecordingBlobUrl(null);
     setRecordingName("");
     setRecordingDurationSeconds(0);
+    masterBlobRef.current = null;
+    stemBlobsRef.current = {};
+    stemChunksRef.current = {};
+    stemRecordersRef.current = {};
     router.push("/sessions");
   }
 
@@ -316,12 +472,14 @@ export function SessionRunView({ sessionId }: SessionRunViewProps) {
           <Button size="sm" variant={activeTool === "harmonium" ? "primary" : "outline"} onClick={() => setActiveTool("harmonium")}>Harmonium</Button>
           <Button size="sm" variant={activeTool === "tabla" ? "primary" : "outline"} onClick={() => setActiveTool("tabla")}>Tabla</Button>
           <Button size="sm" variant={activeTool === "tanpura" ? "primary" : "outline"} onClick={() => setActiveTool("tanpura")}>Tanpura</Button>
+          <Button size="sm" variant={activeTool === "flute" ? "primary" : "outline"} onClick={() => setActiveTool("flute")}>Flute</Button>
         </div>
       </Card>
 
       {activeTool === "harmonium" ? <HarmoniumView /> : null}
       {activeTool === "tabla" ? <TablaView /> : null}
       {activeTool === "tanpura" ? <TanpuraView /> : null}
+      {activeTool === "flute" ? <FluteView /> : null}
 
       {recordingBlobUrl ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827]/30 p-4" role="presentation">

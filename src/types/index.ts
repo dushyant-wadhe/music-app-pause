@@ -24,6 +24,8 @@ export interface UserSettings {
 
 // ─── Recordings ────────────────────────────────────────────────────────────────
 
+export type SessionInstrument = "harmonium" | "tabla" | "tanpura" | "flute";
+
 export interface Recording {
   id: string;
   uid: string;
@@ -36,6 +38,10 @@ export interface Recording {
   tags: string[];
   instrument: "harmonium" | "tabla" | "other";
   blobUrl?: string;            // local-only, transient
+  stemStorageUrls?: Partial<Record<SessionInstrument, string>>;
+  stemBlobUrls?: Partial<Record<SessionInstrument, string>>;
+  capturedInstruments?: SessionInstrument[];
+  instrumentActivitySeconds?: Partial<Record<SessionInstrument, number>>;
 }
 
 // ─── Practice Sessions ─────────────────────────────────────────────────────────

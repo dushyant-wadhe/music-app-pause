@@ -39,13 +39,14 @@ npm run build
 
 | Route | Purpose |
 | --- | --- |
-| `/` | Saved practice sessions; create or reopen a session. |
+| `/` | Product landing page and quick start entry point. |
+| `/sessions` | Saved practice sessions; create or reopen a session. |
 | `/session/[id]` | Configure and run a session's harmonium/tabla cards. |
 | `/harmonium` | Standalone harmonium and recording workspace. |
 | `/tanpura` | Global tonal foundation: Sa or Sa + Pa, root, octave, and volume. |
 | `/tabla` | Standalone tabla/metronome workspace. |
 | `/profile` | Local settings, practice totals, recordings, and sign-in entry point. |
-| `/library` | Redirects to `/` for backwards compatibility. |
+| `/library` | Redirects to `/sessions` for backwards compatibility. |
 
 ## Project map
 
