@@ -66,6 +66,7 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
 
   const activePointers = useRef(new Set<number>());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isProgrammaticScrollRef = useRef(false);
 
   const whiteKeyWidth = 45;
   const blackKeyWidth = 26;
@@ -204,6 +205,8 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
       setScrollPercent((scrollLeft / maxScroll) * 100);
     }
 
+    if (isProgrammaticScrollRef.current) return;
+
     const centerOffset = scrollLeft + (containerWidth / 2);
     const centerKeyIdx = Math.floor(centerOffset / whiteKeyWidth);
 
@@ -236,63 +239,379 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
   };
 
   return (
-    <div
-      className="harmonium-keybed relative w-full select-none touch-none overflow-hidden"
-      aria-label="Harmonium keyboard"
-      role="group"
-    >
-      <div
-        className="relative flex"
-        style={{ height: 120 }}
-      >
-        {/* White keys */}
-        {whites.map((key) => {
-          const active = activeNotes.has(key.note);
-          return (
-            <div
-              key={key.note}
-              className={cn(
-                "piano-white-key touch-none flex-1 flex flex-col items-center justify-end pb-2",
-                active && "active"
-              )}
-              style={{ height: 120 }}
-              draggable={false}
-              aria-label={`${sargamForNote(key.note, rootNote)} octave ${key.octave}`}
-              {...pointerHandlers(key.note)}
+    <div className="flex flex-col animate-in fade-in duration-200">
+      <style>{`
+        .harmonium-keybed-wrapper::-webkit-scrollbar {
+          display: none;
+        }
+        .custom-slider-input::-webkit-slider-runnable-track {
+          background: #251205;
+          height: 4px;
+          border-radius: 2px;
+        }
+        .custom-slider-input::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 32px;
+          height: 18px;
+          background: linear-gradient(180deg, #fcd34d 0%, #d97706 100%);
+          border: 1px solid #b45309;
+          border-radius: 4px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+          cursor: pointer;
+          margin-top: -7px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .custom-slider-input::-webkit-slider-thumb::before {
+          content: "◀ ▶";
+          font-size: 7px;
+          font-weight: bold;
+          color: #5c3a21;
+        }
+      `}</style>
+
+      {/* Unified Control Strip - Warm natural wood color */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center border-b border-[#2a1405] bg-gradient-to-r from-[#854d27] to-[#693c1d] px-4 py-1.5 shadow-md">
+
+        {/* Left Side: Sa Selector & Saptak Quick-Jumps */}
+        <div className="flex items-center gap-2.5 justify-self-start flex-wrap">
+          <div className="flex items-center gap-1 bg-[#3d200d] px-2 py-0.5 rounded border border-[#2a1405] h-7">
+            <span className="text-[9px] font-bold text-[#fcd34d] uppercase tracking-wider">Sa</span>
+            <select
+              value={rootNote}
+              onChange={(e) => setRootNote(e.target.value as RootNote)}
+              className="h-6 rounded border-0 bg-transparent px-1 text-[10px] font-bold text-[#fdf6e2] focus:outline-none"
             >
-              <span
+              {rootNotes.map((note) => (
+                <option key={note} value={note} className="bg-[#5c3a21] text-[#fdf6e2]">{note}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-0.5 bg-[#3d200d] p-0.5 rounded border border-[#2a1405] h-7">
+            {saptaks.map((item) => (
+              <button
+                key={item.octave}
+                onClick={() => {
+                  isProgrammaticScrollRef.current = true;
+                  setOctave(item.octave);
+                  setTimeout(() => {
+                    isProgrammaticScrollRef.current = false;
+                  }, 600);
+                }}
                 className={cn(
-                  "text-[9px] font-semibold tracking-wide pointer-events-none",
-                  active ? "text-[#92400e]" : "text-[#64748B]"
+                  "px-2 py-0.5 rounded text-[9px] font-bold transition-all border cursor-pointer h-5 flex items-center justify-center",
+                  octave === item.octave
+                    ? "bg-[#d97706] text-[#fdf6e2] border-[#b45309] font-extrabold"
+                    : "bg-transparent text-[#fcd34d]/80 border-transparent hover:bg-[#5c3a21]"
                 )}
               >
-                {sargamForNote(key.note, rootNote)}
-              </span>
-            </div>
-          );
-        })}
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-        {/* Black keys — absolutely positioned */}
-        {blacks.map((key) => {
-          const active = activeNotes.has(key.note);
-          return (
-            <div
-              key={key.note}
-              className={cn("piano-black-key", active && "active")}
-              style={{
-                left: blackLeft(key),
-                width: `${whiteWidth * 0.58}%`,
-                height: 72,
-                top: 0,
-              }}
-              draggable={false}
-              role="button"
-              aria-hidden="true"
-              aria-label={`${key.label} octave ${key.octave}`}
-              {...pointerHandlers(key.note)}
+        {/* Center Side: Wood-groove scrollbar slider - slimmed down */}
+        <div className="flex items-center justify-center gap-2.5 justify-self-center w-full max-w-xs md:max-w-none">
+          <span className="text-[7px] font-bold text-[#fcd34d]/75 uppercase tracking-widest pointer-events-none select-none">Low</span>
+          <div className="relative flex-1 h-3 bg-[#1f140d] rounded-full border border-[#2a1405] flex items-center px-1 shadow-inner">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="0.1"
+              value={scrollPercent}
+              onChange={handleScrollbarChange}
+              className="w-full h-1 bg-transparent appearance-none cursor-pointer focus:outline-none custom-slider-input"
             />
-          );
-        })}
+          </div>
+          <span className="text-[7px] font-bold text-[#fcd34d]/75 uppercase tracking-widest pointer-events-none select-none">High</span>
+        </div>
+
+        {/* Right Side: ActiveNoteDisplay and Settings Gear */}
+        <div className="flex items-center gap-3 justify-self-end flex-wrap">
+          <div className="max-w-[70px] sm:max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap">
+            <ActiveNoteDisplay />
+          </div>
+
+          <button
+            onClick={() => setShowSettings(true)}
+            className="text-[22px] text-[#fcd34d] hover:text-[#faf6f0] transition-colors cursor-pointer select-none leading-none"
+            aria-label="Open advanced settings"
+          >
+            ⚙
+          </button>
+        </div>
+      </div>
+
+      {/* Keybed enclosure containing scrollable keys and fixed right coupler block */}
+      <div className="flex bg-[#854d27] border-t border-[#2a1405] p-3 pr-0.5 gap-0.5 relative">
+        {/* Scrollable keybed - Zero outer whitespace */}
+        <div
+          className="harmonium-keybed-wrapper relative flex-1 overflow-x-auto select-none touch-none pb-2"
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          aria-label="Harmonium keyboard scroll wrapper"
+        >
+          <div
+            className="harmonium-keybed relative select-none"
+            style={{ width: keyboardWidth, height: 145 }}
+            aria-label="Harmonium keyboard"
+            role="group"
+          >
+            <div className="relative flex h-full">
+              {/* White keys */}
+              {whites.map((key) => {
+                const active = activeNotes.has(key.note);
+                const isMapped = isMappedRange(key);
+
+                let shortcut = "";
+                if (isMapped) {
+                  const midi = getAbsoluteSemitone(key.note);
+                  if (midi === startMidi + 12) {
+                    shortcut = "K";
+                  } else {
+                    const offset = midi - startMidi;
+                    shortcut = WHITE_KEY_SHORTCUTS[offset] ?? "";
+                  }
+                }
+
+                return (
+                  <div
+                    key={key.note}
+                    className={cn(
+                      "piano-white-key touch-none flex flex-col items-center justify-end pb-2 relative",
+                      active && "active",
+                      isMapped && "border-t-[3px] border-t-[#d97706]/80 bg-[#faf7f2]"
+                    )}
+                    style={{ width: whiteKeyWidth, height: 145 }}
+                    draggable={false}
+                    role="button"
+                    aria-hidden="true"
+                    aria-label={`${sargamForNote(key.note, rootNote)} octave ${key.octave}`}
+                    {...pointerHandlers(key.note)}
+                  >
+                    {shortcut && (
+                      <div className="absolute top-2 flex flex-col items-center pointer-events-none">
+                        <span className="text-[9px] font-bold text-[#b45309] bg-[#fef3c7] px-1 py-0.5 rounded border border-[#f59e0b]/40 shadow-sm leading-none">
+                          {shortcut}
+                        </span>
+                      </div>
+                    )}
+                    <span
+                      className={cn(
+                        "text-[8px] font-semibold tracking-wide pointer-events-none text-center w-full block",
+                        active ? "text-[#92400e]" : "text-[#64748B]"
+                      )}
+                    >
+                      {sargamForNote(key.note, rootNote)}
+                      <span className="text-[7px] opacity-70 ml-0.5">s{key.octave}</span>
+                    </span>
+                  </div>
+                );
+              })}
+
+              {/* Black keys — absolutely positioned */}
+              {blacks.map((key) => {
+                const active = activeNotes.has(key.note);
+                const isMapped = isMappedRange(key);
+
+                let shortcut = "";
+                if (isMapped) {
+                  const midi = getAbsoluteSemitone(key.note);
+                  const offset = midi - startMidi;
+                  shortcut = BLACK_KEY_SHORTCUTS[offset] ?? "";
+                }
+
+                return (
+                  <div
+                    key={key.note}
+                    className={cn(
+                      "piano-black-key absolute flex flex-col items-center justify-end pb-2.5",
+                      active && "active",
+                      isMapped && "border-t-[3px] border-t-[#f59e0b]/80"
+                    )}
+                    style={{
+                      left: getBlackLeft(key),
+                      width: blackKeyWidth,
+                      height: 88,
+                      top: 0,
+                      zIndex: 10,
+                    }}
+                    draggable={false}
+                    role="button"
+                    aria-hidden="true"
+                    aria-label={`${key.label} octave ${key.octave}`}
+                    {...pointerHandlers(key.note)}
+                  >
+                    {shortcut && (
+                      <span className="text-[8px] font-bold text-[#fef3c7] bg-[#78350f] px-1 py-0.5 rounded border border-[#d97706]/40 shadow-sm pointer-events-none leading-none">
+                        {shortcut}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Minimal Fixed Right Coupler Stop Knob (No border/box) */}
+        <div className="w-5 flex flex-col items-center justify-center shrink-0 select-none relative h-[145px]">
+          {/* Vertical steel pull rod slot */}
+          <div className="relative w-2.5 h-20 bg-[#140802] rounded-full border border-[#2a1405] flex flex-col items-center justify-center p-0.5 shadow-inner">
+            {/* Guide line / track */}
+            <div className="w-0.5 h-16 bg-black rounded" />
+
+            {/* Sliding Metal Knob Shank and Cap */}
+            <button
+              onClick={() => setCouplerEnabled(!couplerEnabled)}
+              className={cn(
+                "absolute w-5.5 h-5.5 rounded-full bg-gradient-to-r from-[#e5e7eb] via-[#9ca3af] to-[#374151] border border-[#4b5563] shadow-md flex items-center justify-center cursor-pointer transition-all duration-200",
+                couplerEnabled ? "translate-y-6.5 scale-105 shadow-lg border-[#d1d5db]" : "-translate-y-7"
+              )}
+              aria-label="Pull Coupler Register"
+            >
+              {/* Inner metallic cap core */}
+              <div className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-[#d1d5db] to-[#4b5563] border border-[#374151] flex items-center justify-center">
+                <div className="w-1 h-1 rounded-full bg-[#fcd34d]" />
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Slide-over Settings Drawer */}
+      {/* Backdrop overlay */}
+      <div
+        className={cn(
+          "fixed inset-0 z-45 bg-black/40 backdrop-blur-xs transition-opacity duration-300 pointer-events-none opacity-0",
+          showSettings && "pointer-events-auto opacity-100"
+        )}
+        onClick={() => setShowSettings(false)}
+      />
+      {/* Settings Drawer Panel */}
+      <div
+        className={cn(
+          "fixed inset-y-0 right-0 z-50 w-80 bg-[#faf6f0] border-l border-[#ead9c1] shadow-2xl p-5 flex flex-col gap-4 overflow-y-auto transition-transform duration-300 ease-in-out translate-x-full",
+          showSettings && "translate-x-0"
+        )}
+      >
+        {/* Drawer Header */}
+        <div className="flex items-center justify-between border-b border-[#ead9c1] pb-2">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#7b512b]">⚙ Advanced Settings</p>
+          <button
+            onClick={() => setShowSettings(false)}
+            className="text-[10px] font-bold uppercase tracking-wider text-[#8c6239] hover:text-[#5c3a21] cursor-pointer"
+          >
+            ✕ Close
+          </button>
+        </div>
+
+        {/* Settings Body */}
+        <div className="flex flex-col gap-4">
+          {/* Master Volume */}
+          <Slider
+            label="Master Volume"
+            value={Math.round(volume * 100)}
+            min={0}
+            max={100}
+            onChange={(v) => setVolume(v / 100)}
+            formatValue={(v) => `${v}%`}
+          />
+
+          {/* Room Reverb */}
+          <Slider
+            label="Room Reverb"
+            value={Math.round(reverbLevel * 100)}
+            min={0}
+            max={100}
+            onChange={(v) => setReverbLevel(v / 100)}
+            formatValue={(v) => `${v}%`}
+          />
+
+          {/* Tuning Selector */}
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#5f6877]">Tuning</span>
+            <div className="flex gap-1.5">
+              {tuningOptions.map((mode) => (
+                <Button
+                  key={mode}
+                  variant={tuningMode === mode ? "primary" : "outline"}
+                  size="sm"
+                  onClick={() => setTuningMode(mode)}
+                  className="text-[10px] h-7 px-2.5"
+                >
+                  {mode === "equal" ? "Equal" : "Natural"}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Coupler Balance (Visible only when coupler is enabled) */}
+          {couplerEnabled && (
+            <div className="border-t border-[#ead9c1]/60 pt-3">
+              <Slider
+                label="Reed Balance (Primary / Octave)"
+                value={Math.round(couplerBalance * 100)}
+                min={0}
+                max={100}
+                onChange={(v) => setCouplerBalance(v / 100)}
+                formatValue={(v) => {
+                  if (v === 50) return "Balanced";
+                  return v < 50 ? `${100 - v * 2}% Primary` : `${(v - 50) * 2}% Octave`;
+                }}
+              />
+            </div>
+          )}
+
+          {/* Fine Sound Settings */}
+          <div className="border-t border-[#ead9c1]/60 pt-3 flex flex-col gap-3.5">
+            <Slider
+              label="Sustain"
+              value={Math.round(sustain * 100)}
+              min={0}
+              max={100}
+              onChange={(v) => setSustain(v / 100)}
+              formatValue={(v) => `${v}%`}
+            />
+            <Slider
+              label="Transpose"
+              value={transpose}
+              min={-6}
+              max={6}
+              onChange={setTranspose}
+              formatValue={(v) => (v === 0 ? "0" : v > 0 ? `+${v}` : `${v}`)}
+            />
+            <Slider
+              label="Bellows"
+              value={Math.round(bellowsExpression * 100)}
+              min={0}
+              max={100}
+              onChange={(v) => setBellowsExpression(v / 100)}
+              formatValue={(v) => `${v}%`}
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#5f6877]">Reed Tone</span>
+              <div className="flex gap-1.5">
+                {toneOptions.map((mode) => (
+                  <Button
+                    key={mode}
+                    variant={toneMode === mode ? "primary" : "outline"}
+                    size="sm"
+                    onClick={() => setToneMode(mode)}
+                    className="text-[10px] h-7 px-2.5"
+                  >
+                    {mode === "basic" ? "Basic" : "Warm Reed"}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
