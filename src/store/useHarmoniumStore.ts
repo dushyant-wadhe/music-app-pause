@@ -16,6 +16,9 @@ interface HarmoniumState {
   isRecording: boolean;
   recordedNotes: Array<{ note: string; time: number; duration: number }>;
   recordingStartTime: number | null;
+  couplerEnabled: boolean;
+  couplerBalance: number;
+  reverbLevel: number;
 
   setVolume: (v: number) => void;
   setSustain: (v: number) => void;
@@ -26,6 +29,9 @@ interface HarmoniumState {
   setTuningMode: (mode: HarmoniumTuningMode) => void;
   setToneMode: (mode: HarmoniumToneMode) => void;
   setBellowsExpression: (value: number) => void;
+  setCouplerEnabled: (enabled: boolean) => void;
+  setCouplerBalance: (balance: number) => void;
+  setReverbLevel: (level: number) => void;
   applyConfig: (config: HarmoniumSessionConfig) => void;
   addActiveNote: (note: string) => void;
   removeActiveNote: (note: string) => void;
@@ -51,6 +57,9 @@ export const useHarmoniumStore = create<HarmoniumState>()(
       isRecording: false,
       recordedNotes: [],
       recordingStartTime: null,
+      couplerEnabled: false,
+      couplerBalance: 0.5,
+      reverbLevel: 0.15,
 
       setVolume: (v) => set({ volume: v }),
       setSustain: (v) => set({ sustain: v }),
@@ -61,6 +70,9 @@ export const useHarmoniumStore = create<HarmoniumState>()(
       setTuningMode: (mode) => set({ tuningMode: mode }),
       setToneMode: (mode) => set({ toneMode: mode }),
       setBellowsExpression: (value) => set({ bellowsExpression: Math.max(0, Math.min(1, value)) }),
+      setCouplerEnabled: (enabled) => set({ couplerEnabled: enabled }),
+      setCouplerBalance: (balance) => set({ couplerBalance: balance }),
+      setReverbLevel: (level) => set({ reverbLevel: level }),
       applyConfig: (config) =>
         set({
           volume: config.volume,
@@ -108,6 +120,9 @@ export const useHarmoniumStore = create<HarmoniumState>()(
         tuningMode: s.tuningMode,
         toneMode: s.toneMode,
         bellowsExpression: s.bellowsExpression,
+        couplerEnabled: s.couplerEnabled,
+        couplerBalance: s.couplerBalance,
+        reverbLevel: s.reverbLevel,
       }),
     }
   )

@@ -1,55 +1,112 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { generateKeys } from "../data/keys";
+import { generateFull88Keys } from "../data/keys";
 import { useHarmoniumStore } from "@/store/useHarmoniumStore";
 import { cn } from "@/lib/cn";
 import { sargamForNote } from "../utils/sargam";
+import { Slider } from "@/components/ui/Slider";
+import { Button } from "@/components/ui/Button";
+import { ActiveNoteDisplay } from "./ActiveNoteDisplay";
+import type { HarmoniumKey, RootNote, HarmoniumToneMode, HarmoniumTuningMode } from "@/types";
 
 interface KeyboardProps {
-  onNoteOn:  (note: string, velocity?: number, source?: string) => void;
+  onNoteOn: (note: string, velocity?: number, source?: string) => void;
   onNoteOff: (note: string, source?: string) => void;
 }
 
-export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
-  const { octave, activeNotes, rootNote } = useHarmoniumStore();
-  const activePointers = useRef(new Set<number>());
-  const [octaveCount, setOctaveCount] = useState(3);
+const NOTE_TO_SEMITONE: Record<string, number> = {
+  C: 0, "C#": 1, D: 2, "D#": 3, E: 4, F: 5, "F#": 6, G: 7, "G#": 8, A: 9, "A#": 10, B: 11
+};
 
-  useEffect(() => {
-    const setResponsiveOctaves = () => {
-      setOctaveCount(window.innerWidth < 768 ? 2 : 3);
-    };
-    setResponsiveOctaves();
-    window.addEventListener("resize", setResponsiveOctaves);
-    return () => window.removeEventListener("resize", setResponsiveOctaves);
-  }, []);
-  // Always show 3 octaves centred around the selected octave
-  const startOct = Math.max(1, octave - 1);
-  const keys  = generateKeys(startOct, octaveCount);
+const WHITE_KEY_SHORTCUTS: Record<number, string> = {
+  0: "A",
+  2: "S",
+  4: "D",
+  5: "F",
+  7: "G",
+  9: "H",
+  11: "J"
+};
+
+const BLACK_KEY_SHORTCUTS: Record<number, string> = {
+  1: "W",
+  3: "E",
+  6: "T",
+  8: "Y",
+  10: "U"
+};
+
+function getAbsoluteSemitone(note: string): number {
+  const match = note.match(/^([A-G]#?)(\d)$/);
+  if (!match) return 60;
+  const name = match[1];
+  const oct = Number(match[2]);
+  return (NOTE_TO_SEMITONE[name] ?? 0) + (oct + 1) * 12;
+}
+
+export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
+  const [showSettings, setShowSettings] = useState(false);
+  const [scrollPercent, setScrollPercent] = useState(0);
+
+  const {
+    volume, setVolume,
+    sustain, setSustain,
+    octave, setOctave,
+    transpose, setTranspose,
+    rootNote, setRootNote,
+    tuningMode, setTuningMode,
+    toneMode, setToneMode,
+    bellowsExpression, setBellowsExpression,
+    couplerEnabled, setCouplerEnabled,
+    couplerBalance, setCouplerBalance,
+    reverbLevel, setReverbLevel,
+    activeNotes,
+  } = useHarmoniumStore();
+
+  const activePointers = useRef(new Set<number>());
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const whiteKeyWidth = 45;
+  const blackKeyWidth = 26;
+
+  const keys = generateFull88Keys();
   const whites = keys.filter((k) => !k.isBlack);
   const blacks = keys.filter((k) => k.isBlack);
 
-  const whiteWidth = 100 / whites.length; // % width per white key
+  const keyboardWidth = whites.length * whiteKeyWidth;
 
-  // Map white key notes → their display index (for black key positioning)
   const whiteIndexMap = new Map<string, number>();
   whites.forEach((k, i) => whiteIndexMap.set(k.note, i));
 
-  /**
-   * Position a black key relative to its preceding white key.
-   * Black keys sit 60% into the width of their preceding white key.
-   */
-  function blackLeft(key: typeof blacks[0]): string {
-    // All whites that come before this black key (lower octave OR same octave with smaller semitone)
-    const preceding = whites.filter((w) =>
-      w.octave < key.octave ||
-      (w.octave === key.octave && w.semitone < key.semitone)
-    );
-    const lastWhite = preceding[preceding.length - 1];
-    const idx = lastWhite ? (whiteIndexMap.get(lastWhite.note) ?? 0) : 0;
-    // Centre the black key over the boundary between lastWhite and next white
-    return `${idx * whiteWidth + whiteWidth * 0.62}%`;
+  const rootNotes: RootNote[] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const tuningOptions: HarmoniumTuningMode[] = ["equal", "natural"];
+  const toneOptions: HarmoniumToneMode[] = ["basic", "warm-reed"];
+
+  const saptaks = [
+    { label: "s2", octave: 2 },
+    { label: "s3", octave: 3 },
+    { label: "s4", octave: 4 },
+    { label: "s5", octave: 5 },
+    { label: "s6", octave: 6 },
+  ];
+
+  function getBlackLeft(key: HarmoniumKey): number {
+    const precedingSemis = new Map<number, number>([
+      [1, 0],   // C# -> C
+      [3, 2],   // D# -> D
+      [6, 5],   // F# -> F
+      [8, 7],   // G# -> G
+      [10, 9]   // A# -> A
+    ]);
+    const targetSemi = precedingSemis.get(key.semitone);
+    if (targetSemi === undefined) return 0;
+
+    const precedingWhite = whites.find(w => w.octave === key.octave && w.semitone === targetSemi);
+    if (!precedingWhite) return 0;
+
+    const idx = whiteIndexMap.get(precedingWhite.note) ?? 0;
+    return (idx + 1) * whiteKeyWidth - (blackKeyWidth / 2);
   }
 
   function enableScrollLock(pointerId: number) {
@@ -58,6 +115,7 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
     document.documentElement.classList.add("harmonium-scroll-lock");
   }
 
+  // Refined gesture handlers to avoid click leaks
   function disableScrollLock(pointerId: number) {
     activePointers.current.delete(pointerId);
     if (activePointers.current.size > 0) return;
@@ -112,6 +170,71 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
     };
   }, []);
 
+  // Smooth scroll target centering effect (only shifts if far from current selection)
+  useEffect(() => {
+    if (!scrollContainerRef.current) return;
+    const idx = whites.findIndex((k) => k.note === `C${octave}`);
+    if (idx !== -1) {
+      const container = scrollContainerRef.current;
+      const keyLeft = (idx + 4.5) * whiteKeyWidth;
+      const containerWidth = container.clientWidth;
+      const targetScrollLeft = keyLeft - (containerWidth / 2);
+
+      const currentScrollLeft = container.scrollLeft;
+      // Allow a buffer of 2.5 white keys to prevent scroll centering loops during manual swiping
+      if (Math.abs(currentScrollLeft - targetScrollLeft) > whiteKeyWidth * 2.5) {
+        container.scrollTo({
+          left: Math.max(0, targetScrollLeft),
+          behavior: "smooth",
+        });
+      }
+    }
+  }, [octave, whites]);
+
+  // Update store octave automatically based on manual scroll position
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const containerWidth = container.clientWidth;
+    const scrollLeft = container.scrollLeft;
+
+    const maxScroll = container.scrollWidth - containerWidth;
+    if (maxScroll > 0) {
+      setScrollPercent((scrollLeft / maxScroll) * 100);
+    }
+
+    const centerOffset = scrollLeft + (containerWidth / 2);
+    const centerKeyIdx = Math.floor(centerOffset / whiteKeyWidth);
+
+    const centerKey = whites[centerKeyIdx];
+    if (centerKey) {
+      // Keep selected base octave bounded within the playable shortcut range [2, 6]
+      const targetOctave = Math.max(2, Math.min(6, centerKey.octave));
+      const currentStore = useHarmoniumStore.getState();
+      if (targetOctave !== currentStore.octave) {
+        currentStore.setOctave(targetOctave);
+      }
+    }
+  };
+
+  const handleScrollbarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const val = parseFloat(e.target.value);
+    setScrollPercent(val);
+    const maxScroll = container.scrollWidth - container.clientWidth;
+    container.scrollLeft = (val / 100) * maxScroll;
+  };
+
+  const startMidi = getAbsoluteSemitone(`C${octave}`);
+  const endMidi = startMidi + 12;
+
+  const isMappedRange = (key: HarmoniumKey) => {
+    const midi = getAbsoluteSemitone(key.note);
+    return midi >= startMidi && midi <= endMidi;
+  };
+
   return (
     <div
       className="harmonium-keybed relative w-full select-none touch-none overflow-hidden"
@@ -157,12 +280,14 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
               key={key.note}
               className={cn("piano-black-key", active && "active")}
               style={{
-                left:   blackLeft(key),
-                width:  `${whiteWidth * 0.58}%`,
+                left: blackLeft(key),
+                width: `${whiteWidth * 0.58}%`,
                 height: 72,
-                top:    0,
+                top: 0,
               }}
               draggable={false}
+              role="button"
+              aria-hidden="true"
               aria-label={`${key.label} octave ${key.octave}`}
               {...pointerHandlers(key.note)}
             />

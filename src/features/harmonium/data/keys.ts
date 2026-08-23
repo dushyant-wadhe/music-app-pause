@@ -52,6 +52,39 @@ export function generateKeys(startOctave = 3, octaveCount = 3): HarmoniumKey[] {
   return keys;
 }
 
+export function generateFull88Keys(): HarmoniumKey[] {
+  const keys: HarmoniumKey[] = [];
+  
+  // Octave 0: A0 to B0
+  keys.push({ note: "A0", label: SARGAM[9], isBlack: false, octave: 0, semitone: 9 });
+  keys.push({ note: "A#0", label: SARGAM[10], isBlack: true, octave: 0, semitone: 10 });
+  keys.push({ note: "B0", label: SARGAM[11], isBlack: false, octave: 0, semitone: 11 });
+
+  // Octaves 1 to 7
+  for (let oct = 1; oct <= 7; oct++) {
+    for (let semi = 0; semi < 12; semi++) {
+      keys.push({
+        note:    `${NOTE_NAMES[semi]}${oct}`,
+        label:   SARGAM[semi],
+        isBlack: BLACK_SEMITONES.has(semi),
+        octave:  oct,
+        semitone: semi,
+      });
+    }
+  }
+
+  // C8 (top note)
+  keys.push({
+    note:    "C8",
+    label:   "Sa",
+    isBlack: false,
+    octave:  8,
+    semitone: 0,
+  });
+
+  return keys;
+}
+
 /** Keyboard shortcut → semitone offset within current octave */
 export const KEY_MAP: Record<string, number> = {
   // White keys

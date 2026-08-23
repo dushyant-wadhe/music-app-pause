@@ -25,6 +25,8 @@ export function useHarmoniumEngine() {
     removeActiveNote,
     isRecording,
     addRecordedNote,
+    couplerEnabled,
+    couplerBalance,
   } = useHarmoniumStore();
 
   const activeSources     = useRef<Map<string, Set<string>>>(new Map());
@@ -51,9 +53,9 @@ export function useHarmoniumEngine() {
     if (!wasInactive) return;
 
     noteStartTimes.current.set(note, Date.now());
-    playNote(note, volume, sustain, transpose, rootNote, tuningMode, toneMode, bellowsExpression, velocity);
+    playNote(note, volume, sustain, transpose, rootNote, tuningMode, toneMode, bellowsExpression, velocity, couplerEnabled, couplerBalance);
     addActiveNote(note);
-  }, [addActiveNote, bellowsExpression, rootNote, sustain, toneMode, transpose, tuningMode, volume]);
+  }, [addActiveNote, bellowsExpression, rootNote, sustain, toneMode, transpose, tuningMode, volume, couplerEnabled, couplerBalance]);
 
   const handleNoteOff = useCallback((note: string, source = "pointer") => {
     const sources = activeSources.current.get(note);

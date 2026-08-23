@@ -33,6 +33,10 @@ const TOOL_TABS = [
     href: "/flute",
     label: "Flute",
   },
+  {
+    href: "/vocal-practice",
+    label: "Voice",
+  },
 ];
 
 export function BottomNav() {

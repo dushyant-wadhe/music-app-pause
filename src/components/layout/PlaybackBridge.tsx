@@ -6,12 +6,13 @@ import { useLibraryStore } from "@/store/useLibraryStore";
 import { useTablaStore } from "@/store/useTablaStore";
 import { useTanpuraStore } from "@/store/useTanpuraStore";
 import { resolveTablaVariant, TAALS } from "@/features/tabla/data/taals";
-import { setMasterVolume } from "@/features/harmonium/engine/audioEngine";
+import { setMasterVolume, setReverbLevel } from "@/features/harmonium/engine/audioEngine";
 import { startRhythm, stopRhythm, updateBpm } from "@/features/tabla/engine/rhythmEngine";
 import { startTanpuraDrone, stopTanpuraDrone } from "@/features/tanpura/engine/audioEngine";
 
 export function PlaybackBridge() {
   const harmoniumVolume = useHarmoniumStore((state) => state.volume);
+  const harmoniumReverb = useHarmoniumStore((state) => state.reverbLevel);
   const tanpuraMode = useTanpuraStore((state) => state.mode);
   const tanpuraRootNote = useTanpuraStore((state) => state.rootNote);
   const tanpuraOctave = useTanpuraStore((state) => state.octave);
@@ -31,6 +32,10 @@ export function PlaybackBridge() {
   useEffect(() => {
     setMasterVolume(harmoniumVolume);
   }, [harmoniumVolume]);
+
+  useEffect(() => {
+    setReverbLevel(harmoniumReverb);
+  }, [harmoniumReverb]);
 
   useEffect(() => {
     if (tanpuraMode === "off") {
