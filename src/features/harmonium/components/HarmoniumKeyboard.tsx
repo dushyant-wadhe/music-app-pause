@@ -49,6 +49,16 @@ function getAbsoluteSemitone(note: string): number {
 export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }: KeyboardProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [scrollPercent, setScrollPercent] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  const pointerActiveNotes = useRef<Map<number, string>>(new Map());
 
   const {
     volume, setVolume,
@@ -132,20 +142,62 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }:
         enableScrollLock(e.pointerId);
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         onNoteOn(note, 1, `pointer:${e.pointerId}`);
+        pointerActiveNotes.current.set(e.pointerId, note);
+      },
+      onPointerMove: (e: React.PointerEvent) => {
+        if (!isMobile) return;
+        if (!activePointers.current.has(e.pointerId)) return;
+        e.preventDefault();
+
+        const element = document.elementFromPoint(e.clientX, e.clientY);
+        if (!element) return;
+
+        const keyElement = element.closest("[data-note]");
+        if (keyElement) {
+          const targetNote = keyElement.getAttribute("data-note");
+          if (targetNote) {
+            const currentActiveNote = pointerActiveNotes.current.get(e.pointerId);
+            if (currentActiveNote !== targetNote) {
+              if (currentActiveNote) {
+                onNoteOff(currentActiveNote, `pointer:${e.pointerId}`);
+              }
+              onNoteOn(targetNote, 1, `pointer:${e.pointerId}`);
+              pointerActiveNotes.current.set(e.pointerId, targetNote);
+            }
+          }
+        }
       },
       onPointerUp: (e: React.PointerEvent) => {
         e.preventDefault();
         disableScrollLock(e.pointerId);
-        onNoteOff(note, `pointer:${e.pointerId}`);
+        const activeNote = pointerActiveNotes.current.get(e.pointerId);
+        if (activeNote) {
+          onNoteOff(activeNote, `pointer:${e.pointerId}`);
+        } else if (!isMobile) {
+          onNoteOff(note, `pointer:${e.pointerId}`);
+        }
+        pointerActiveNotes.current.delete(e.pointerId);
       },
       onPointerCancel: (e: React.PointerEvent) => {
         e.preventDefault();
         disableScrollLock(e.pointerId);
-        onNoteOff(note, `pointer:${e.pointerId}`);
+        const activeNote = pointerActiveNotes.current.get(e.pointerId);
+        if (activeNote) {
+          onNoteOff(activeNote, `pointer:${e.pointerId}`);
+        } else if (!isMobile) {
+          onNoteOff(note, `pointer:${e.pointerId}`);
+        }
+        pointerActiveNotes.current.delete(e.pointerId);
       },
       onLostPointerCapture: (e: React.PointerEvent) => {
         disableScrollLock(e.pointerId);
-        onNoteOff(note, `pointer:${e.pointerId}`);
+        const activeNote = pointerActiveNotes.current.get(e.pointerId);
+        if (activeNote) {
+          onNoteOff(activeNote, `pointer:${e.pointerId}`);
+        } else if (!isMobile) {
+          onNoteOff(note, `pointer:${e.pointerId}`);
+        }
+        pointerActiveNotes.current.delete(e.pointerId);
       },
       onMouseDown: (e: React.MouseEvent) => e.preventDefault(),
       onTouchStart: (e: React.TouchEvent) => e.preventDefault(),
@@ -350,12 +402,17 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }:
 
       {/* Keybed enclosure containing scrollable keys and fixed right coupler block */}
       <div
-        className="flex bg-[#854d27] border-t border-[#2a1405] p-3 pr-0.5 gap-0.5 relative"
-        style={{ height: isFullscreen ? "calc(100% - 45px)" : "auto" }}
+        className={cn(
+          "flex bg-[#854d27] border-t border-[#2a1405] p-3 pr-0.5 gap-0.5 relative",
+          isFullscreen ? "h-[calc(100vh-65px)]" : "h-[169px]"
+        )}
       >
         {/* Scrollable keybed - Zero outer whitespace */}
         <div
-          className={cn("harmonium-keybed-wrapper relative flex-1 overflow-x-auto select-none touch-none pb-2", isFullscreen && "h-full")}
+          className={cn(
+            "harmonium-keybed-wrapper relative flex-1 overflow-x-auto select-none touch-none pb-2",
+            isFullscreen && "h-full overflow-y-hidden"
+          )}
           ref={scrollContainerRef}
           onScroll={handleScroll}
           aria-label="Harmonium keyboard scroll wrapper"
@@ -386,6 +443,7 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }:
                 return (
                   <div
                     key={key.note}
+                    data-note={key.note}
                     className={cn(
                       "piano-white-key touch-none flex flex-col items-center justify-end pb-2 relative",
                       active && "active",
@@ -398,7 +456,7 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }:
                     aria-label={`${sargamForNote(key.note, rootNote)} octave ${key.octave}`}
                     {...pointerHandlers(key.note)}
                   >
-                    {shortcut && (
+                    {shortcut && !isMobile && (
                       <div className="absolute top-2 flex flex-col items-center pointer-events-none">
                         <span className="text-[9px] font-bold text-[#b45309] bg-[#fef3c7] px-1 py-0.5 rounded border border-[#f59e0b]/40 shadow-sm leading-none">
                           {shortcut}
@@ -433,6 +491,7 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }:
                 return (
                   <div
                     key={key.note}
+                    data-note={key.note}
                     className={cn(
                       "piano-black-key absolute flex flex-col items-center justify-end pb-2.5",
                       active && "active",
@@ -451,7 +510,7 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }:
                     aria-label={`${key.label} octave ${key.octave}`}
                     {...pointerHandlers(key.note)}
                   >
-                    {shortcut && (
+                    {shortcut && !isMobile && (
                       <span className="text-[8px] font-bold text-[#fef3c7] bg-[#78350f] px-1 py-0.5 rounded border border-[#d97706]/40 shadow-sm pointer-events-none leading-none">
                         {shortcut}
                       </span>
@@ -469,9 +528,7 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }:
           style={{ height: isFullscreen ? "100%" : 145 }}
         >
           {/* Vertical steel pull rod slot */}
-          <div
-            className={cn("relative w-2.5 bg-[#140802] rounded-full border border-[#2a1405] flex flex-col items-center justify-center p-0.5 shadow-inner", isFullscreen ? "h-[60%]" : "h-20")}
-          >
+          <div className="relative w-2.5 h-20 bg-[#140802] rounded-full border border-[#2a1405] flex flex-col items-center justify-center p-0.5 shadow-inner">
             {/* Guide line / track */}
             <div className="w-0.5 h-16 bg-black rounded" />
 
