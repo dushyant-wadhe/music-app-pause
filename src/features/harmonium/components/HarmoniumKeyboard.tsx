@@ -13,6 +13,7 @@ import type { HarmoniumKey, RootNote, HarmoniumToneMode, HarmoniumTuningMode } f
 interface KeyboardProps {
   onNoteOn: (note: string, velocity?: number, source?: string) => void;
   onNoteOff: (note: string, source?: string) => void;
+  isFullscreen?: boolean;
 }
 
 const NOTE_TO_SEMITONE: Record<string, number> = {
@@ -45,7 +46,7 @@ function getAbsoluteSemitone(note: string): number {
   return (NOTE_TO_SEMITONE[name] ?? 0) + (oct + 1) * 12;
 }
 
-export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
+export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }: KeyboardProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [scrollPercent, setScrollPercent] = useState(0);
 
@@ -348,17 +349,20 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
       </div>
 
       {/* Keybed enclosure containing scrollable keys and fixed right coupler block */}
-      <div className="flex bg-[#854d27] border-t border-[#2a1405] p-3 pr-0.5 gap-0.5 relative">
+      <div
+        className="flex bg-[#854d27] border-t border-[#2a1405] p-3 pr-0.5 gap-0.5 relative"
+        style={{ height: isFullscreen ? "calc(100% - 45px)" : "auto" }}
+      >
         {/* Scrollable keybed - Zero outer whitespace */}
         <div
-          className="harmonium-keybed-wrapper relative flex-1 overflow-x-auto select-none touch-none pb-2"
+          className={cn("harmonium-keybed-wrapper relative flex-1 overflow-x-auto select-none touch-none pb-2", isFullscreen && "h-full")}
           ref={scrollContainerRef}
           onScroll={handleScroll}
           aria-label="Harmonium keyboard scroll wrapper"
         >
           <div
             className="harmonium-keybed relative select-none"
-            style={{ width: keyboardWidth, height: 145 }}
+            style={{ width: keyboardWidth, height: isFullscreen ? "100%" : 145 }}
             aria-label="Harmonium keyboard"
             role="group"
           >
@@ -387,7 +391,7 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
                       active && "active",
                       isMapped && "border-t-[3px] border-t-[#d97706]/80 bg-[#faf7f2]"
                     )}
-                    style={{ width: whiteKeyWidth, height: 145 }}
+                    style={{ width: whiteKeyWidth, height: isFullscreen ? "100%" : 145 }}
                     draggable={false}
                     role="button"
                     aria-hidden="true"
@@ -437,7 +441,7 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
                     style={{
                       left: getBlackLeft(key),
                       width: blackKeyWidth,
-                      height: 88,
+                      height: isFullscreen ? "60%" : 88,
                       top: 0,
                       zIndex: 10,
                     }}
@@ -460,9 +464,14 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
         </div>
 
         {/* Minimal Fixed Right Coupler Stop Knob (No border/box) */}
-        <div className="w-5 flex flex-col items-center justify-center shrink-0 select-none relative h-[145px]">
+        <div
+          className="w-5 flex flex-col items-center justify-center shrink-0 select-none relative"
+          style={{ height: isFullscreen ? "100%" : 145 }}
+        >
           {/* Vertical steel pull rod slot */}
-          <div className="relative w-2.5 h-20 bg-[#140802] rounded-full border border-[#2a1405] flex flex-col items-center justify-center p-0.5 shadow-inner">
+          <div
+            className={cn("relative w-2.5 bg-[#140802] rounded-full border border-[#2a1405] flex flex-col items-center justify-center p-0.5 shadow-inner", isFullscreen ? "h-[60%]" : "h-20")}
+          >
             {/* Guide line / track */}
             <div className="w-0.5 h-16 bg-black rounded" />
 
