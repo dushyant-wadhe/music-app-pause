@@ -5,7 +5,6 @@ import { useHarmoniumEngine } from "../hooks/useHarmoniumEngine";
 import { HarmoniumKeyboard } from "./HarmoniumKeyboard";
 import { Button } from "@/components/ui/Button";
 import { RecordingControls, useRecordingController } from "./RecordingControls";
-import { cn } from "@/lib/cn";
 
 export function HarmoniumView() {
   const { handleNoteOn, handleNoteOff } = useHarmoniumEngine();
@@ -77,10 +76,7 @@ export function HarmoniumView() {
   // The main performance component (Cabinet + Keyboard)
   const renderCabinet = () => (
     <section
-      className={cn(
-        "harmonium-cabinet relative overflow-hidden w-full",
-        isFullscreenLandscape && "h-full"
-      )}
+      className="harmonium-cabinet relative overflow-hidden w-full"
       aria-label="Harmonium performance area"
       style={{
         borderRadius: isFullscreenLandscape ? "0" : "1rem",
@@ -98,7 +94,7 @@ export function HarmoniumView() {
       )}
 
       <div className="harmonium-cabinet-rail" aria-hidden="true" />
-      <div className={cn("harmonium-keywell overflow-hidden", isFullscreenLandscape && "h-full flex flex-col")}>
+      <div className="harmonium-keywell overflow-hidden">
         {/* Geometric Jali at the very top of the cabinet */}
         <div className="bg-gradient-to-b from-[#854d27] to-[#693c1d] p-3 border-b border-[#2a1405] relative shadow-inner">
           <div className="absolute top-1 left-1 w-2 h-2 border-t border-l border-[#fcd34d]/30 rounded-tl-sm pointer-events-none" />
@@ -126,11 +122,7 @@ export function HarmoniumView() {
 
         {/* Keyboard Enclosure */}
         <div className="bg-[#854d27]">
-          <HarmoniumKeyboard
-            onNoteOn={handleNoteOn}
-            onNoteOff={handleNoteOff}
-            isFullscreen={isFullscreenLandscape}
-          />
+          <HarmoniumKeyboard onNoteOn={handleNoteOn} onNoteOff={handleNoteOff} />
         </div>
       </div>
 
@@ -214,7 +206,7 @@ export function HarmoniumView() {
       ) : (
         /* Fullscreen Landscape Performance Mode */
         <div className="fixed inset-0 z-50 bg-[#140802] flex items-center justify-center p-1 w-screen h-screen">
-          <div className="w-full h-full">
+          <div className="w-full max-h-screen">
             {renderCabinet()}
           </div>
         </div>

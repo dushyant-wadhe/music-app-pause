@@ -13,7 +13,6 @@ import type { HarmoniumKey, RootNote, HarmoniumToneMode, HarmoniumTuningMode } f
 interface KeyboardProps {
   onNoteOn: (note: string, velocity?: number, source?: string) => void;
   onNoteOff: (note: string, source?: string) => void;
-  isFullscreen?: boolean;
 }
 
 const NOTE_TO_SEMITONE: Record<string, number> = {
@@ -46,19 +45,9 @@ function getAbsoluteSemitone(note: string): number {
   return (NOTE_TO_SEMITONE[name] ?? 0) + (oct + 1) * 12;
 }
 
-export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }: KeyboardProps) {
+export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [scrollPercent, setScrollPercent] = useState(0);
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
-  const pointerActiveNotes = useRef<Map<number, string>>(new Map());
 
   const {
     volume, setVolume,
@@ -142,62 +131,20 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }:
         enableScrollLock(e.pointerId);
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         onNoteOn(note, 1, `pointer:${e.pointerId}`);
-        pointerActiveNotes.current.set(e.pointerId, note);
-      },
-      onPointerMove: (e: React.PointerEvent) => {
-        if (!isMobile) return;
-        if (!activePointers.current.has(e.pointerId)) return;
-        e.preventDefault();
-
-        const element = document.elementFromPoint(e.clientX, e.clientY);
-        if (!element) return;
-
-        const keyElement = element.closest("[data-note]");
-        if (keyElement) {
-          const targetNote = keyElement.getAttribute("data-note");
-          if (targetNote) {
-            const currentActiveNote = pointerActiveNotes.current.get(e.pointerId);
-            if (currentActiveNote !== targetNote) {
-              if (currentActiveNote) {
-                onNoteOff(currentActiveNote, `pointer:${e.pointerId}`);
-              }
-              onNoteOn(targetNote, 1, `pointer:${e.pointerId}`);
-              pointerActiveNotes.current.set(e.pointerId, targetNote);
-            }
-          }
-        }
       },
       onPointerUp: (e: React.PointerEvent) => {
         e.preventDefault();
         disableScrollLock(e.pointerId);
-        const activeNote = pointerActiveNotes.current.get(e.pointerId);
-        if (activeNote) {
-          onNoteOff(activeNote, `pointer:${e.pointerId}`);
-        } else if (!isMobile) {
-          onNoteOff(note, `pointer:${e.pointerId}`);
-        }
-        pointerActiveNotes.current.delete(e.pointerId);
+        onNoteOff(note, `pointer:${e.pointerId}`);
       },
       onPointerCancel: (e: React.PointerEvent) => {
         e.preventDefault();
         disableScrollLock(e.pointerId);
-        const activeNote = pointerActiveNotes.current.get(e.pointerId);
-        if (activeNote) {
-          onNoteOff(activeNote, `pointer:${e.pointerId}`);
-        } else if (!isMobile) {
-          onNoteOff(note, `pointer:${e.pointerId}`);
-        }
-        pointerActiveNotes.current.delete(e.pointerId);
+        onNoteOff(note, `pointer:${e.pointerId}`);
       },
       onLostPointerCapture: (e: React.PointerEvent) => {
         disableScrollLock(e.pointerId);
-        const activeNote = pointerActiveNotes.current.get(e.pointerId);
-        if (activeNote) {
-          onNoteOff(activeNote, `pointer:${e.pointerId}`);
-        } else if (!isMobile) {
-          onNoteOff(note, `pointer:${e.pointerId}`);
-        }
-        pointerActiveNotes.current.delete(e.pointerId);
+        onNoteOff(note, `pointer:${e.pointerId}`);
       },
       onMouseDown: (e: React.MouseEvent) => e.preventDefault(),
       onTouchStart: (e: React.TouchEvent) => e.preventDefault(),
@@ -401,25 +348,17 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }:
       </div>
 
       {/* Keybed enclosure containing scrollable keys and fixed right coupler block */}
-      <div
-        className={cn(
-          "flex bg-[#854d27] border-t border-[#2a1405] p-3 pr-0.5 gap-0.5 relative",
-          isFullscreen ? "h-[calc(100vh-65px)]" : "h-[169px]"
-        )}
-      >
+      <div className="flex bg-[#854d27] border-t border-[#2a1405] p-3 pr-0.5 gap-0.5 relative">
         {/* Scrollable keybed - Zero outer whitespace */}
         <div
-          className={cn(
-            "harmonium-keybed-wrapper relative flex-1 overflow-x-auto select-none touch-none pb-2",
-            isFullscreen && "h-full overflow-y-hidden"
-          )}
+          className="harmonium-keybed-wrapper relative flex-1 overflow-x-auto select-none touch-none pb-2"
           ref={scrollContainerRef}
           onScroll={handleScroll}
           aria-label="Harmonium keyboard scroll wrapper"
         >
           <div
             className="harmonium-keybed relative select-none"
-            style={{ width: keyboardWidth, height: isFullscreen ? "100%" : 145 }}
+            style={{ width: keyboardWidth, height: 145 }}
             aria-label="Harmonium keyboard"
             role="group"
           >
@@ -443,20 +382,19 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }:
                 return (
                   <div
                     key={key.note}
-                    data-note={key.note}
                     className={cn(
                       "piano-white-key touch-none flex flex-col items-center justify-end pb-2 relative",
                       active && "active",
                       isMapped && "border-t-[3px] border-t-[#d97706]/80 bg-[#faf7f2]"
                     )}
-                    style={{ width: whiteKeyWidth, height: isFullscreen ? "100%" : 145 }}
+                    style={{ width: whiteKeyWidth, height: 145 }}
                     draggable={false}
                     role="button"
                     aria-hidden="true"
                     aria-label={`${sargamForNote(key.note, rootNote)} octave ${key.octave}`}
                     {...pointerHandlers(key.note)}
                   >
-                    {shortcut && !isMobile && (
+                    {shortcut && (
                       <div className="absolute top-2 flex flex-col items-center pointer-events-none">
                         <span className="text-[9px] font-bold text-[#b45309] bg-[#fef3c7] px-1 py-0.5 rounded border border-[#f59e0b]/40 shadow-sm leading-none">
                           {shortcut}
@@ -491,7 +429,6 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }:
                 return (
                   <div
                     key={key.note}
-                    data-note={key.note}
                     className={cn(
                       "piano-black-key absolute flex flex-col items-center justify-end pb-2.5",
                       active && "active",
@@ -500,7 +437,7 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }:
                     style={{
                       left: getBlackLeft(key),
                       width: blackKeyWidth,
-                      height: isFullscreen ? "60%" : 88,
+                      height: 88,
                       top: 0,
                       zIndex: 10,
                     }}
@@ -510,7 +447,7 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }:
                     aria-label={`${key.label} octave ${key.octave}`}
                     {...pointerHandlers(key.note)}
                   >
-                    {shortcut && !isMobile && (
+                    {shortcut && (
                       <span className="text-[8px] font-bold text-[#fef3c7] bg-[#78350f] px-1 py-0.5 rounded border border-[#d97706]/40 shadow-sm pointer-events-none leading-none">
                         {shortcut}
                       </span>
@@ -523,10 +460,7 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff, isFullscreen = false }:
         </div>
 
         {/* Minimal Fixed Right Coupler Stop Knob (No border/box) */}
-        <div
-          className="w-5 flex flex-col items-center justify-center shrink-0 select-none relative"
-          style={{ height: isFullscreen ? "100%" : 145 }}
-        >
+        <div className="w-5 flex flex-col items-center justify-center shrink-0 select-none relative h-[145px]">
           {/* Vertical steel pull rod slot */}
           <div className="relative w-2.5 h-20 bg-[#140802] rounded-full border border-[#2a1405] flex flex-col items-center justify-center p-0.5 shadow-inner">
             {/* Guide line / track */}
