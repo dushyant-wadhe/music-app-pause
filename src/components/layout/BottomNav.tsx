@@ -80,7 +80,7 @@ export function BottomNav() {
   }, []);
 
   return (
-    <header className="riyaaz-nav sticky top-0 z-30" aria-label="Main navigation">
+    <header className="riyaaz-nav sticky top-0 z-[9999]" aria-label="Main navigation">
       <div className="riyaaz-nav-inner mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-3 py-3 md:px-5">
         <Link
           href="/"
@@ -144,7 +144,7 @@ export function BottomNav() {
             {toolsOpen && (
             <>
             <div className="absolute right-0 top-full h-3 w-48" aria-hidden="true" />
-            <div className="riyaaz-tools-menu absolute right-0 top-[calc(100%+10px)] z-[100] w-48 p-1.5">
+            <div className="riyaaz-tools-menu absolute right-0 top-[calc(100%+10px)] z-[99999] w-48 p-1.5">
               {TOOL_TABS.map(({ href, label }) => {
                 const active = pathname.startsWith(href);
                 return (

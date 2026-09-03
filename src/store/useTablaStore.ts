@@ -7,6 +7,9 @@ interface TablaState {
   selectedTaal: TaalName;
   bpm: number;
   pitch: number;
+  volume: number;
+  reverbLevel: number;
+  humanize: number;
   isPlaying: boolean;
   currentBeat: number;
   isLooping: boolean;
@@ -25,6 +28,9 @@ interface TablaState {
   setTaal: (t: TaalName) => void;
   setBpm: (b: number) => void;
   setPitch: (p: number) => void;
+  setVolume: (v: number) => void;
+  setReverbLevel: (r: number) => void;
+  setHumanize: (h: number) => void;
   setPlaying: (v: boolean) => void;
   setCurrentBeat: (b: number) => void;
   setMode: (mode: "tabla" | "metronome") => void;
@@ -49,6 +55,9 @@ export const useTablaStore = create<TablaState>()(
       selectedTaal: "Teentaal",
       bpm: 80,
       pitch: 0,
+      volume: 0.85,
+      reverbLevel: 0.15,
+      humanize: 0.02,
       isPlaying: false,
       currentBeat: 0,
       isLooping: true,
@@ -78,6 +87,9 @@ export const useTablaStore = create<TablaState>()(
         }),
       setBpm: (b) => set({ bpm: Math.max(40, Math.min(240, b)) }),
       setPitch: (p) => set({ pitch: p }),
+      setVolume: (v) => set({ volume: Math.max(0, Math.min(1, v)) }),
+      setReverbLevel: (r) => set({ reverbLevel: Math.max(0, Math.min(1, r)) }),
+      setHumanize: (h) => set({ humanize: Math.max(0, Math.min(0.1, h)) }),
       setPlaying: (v) => set({ isPlaying: v }),
       setCurrentBeat: (b) => set({ currentBeat: b }),
       setMode: (mode) => set({ mode, isMetronomeMode: mode === "metronome" }),

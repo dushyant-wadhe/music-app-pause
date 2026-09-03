@@ -2,6 +2,7 @@
 
 import { useCallback, useRef } from "react";
 import { midiToFreq, sargamDegreeToMidi, NATURAL_SWARAS } from "../utils/sargamPitch";
+import { cn } from "@/lib/cn";
 import type { RootNote } from "@/types";
 
 interface TargetNoteProps {
@@ -36,13 +37,13 @@ export function TargetNote({ rootNote, octave, selectedDegree, onSelectDegree }:
   }, [rootNote, octave]);
 
   return (
-    <div className="flex flex-wrap items-center gap-2.5">
-      <span className="text-xs font-bold uppercase tracking-wider text-[var(--ink-soft)] mr-1">
-        Target Swar:
+    <div className="flex flex-wrap items-center gap-1.5 bg-[#3d200d] p-0.5 rounded border border-[#2a1405] h-7">
+      <span className="text-[9px] font-bold text-[#fcd34d] uppercase tracking-wider px-1">
+        Target
       </span>
 
-      {/* Inline swara button capsules */}
-      <div className="flex items-center gap-1">
+      {/* Swara button pills */}
+      <div className="flex items-center gap-0.5">
         {NATURAL_SWARAS.map((swara) => {
           const isSelected = selectedDegree === swara.degree;
           return (
@@ -52,12 +53,12 @@ export function TargetNote({ rootNote, octave, selectedDegree, onSelectDegree }:
                 onSelectDegree(swara.degree);
                 playReference(swara.degree);
               }}
-              className="flex h-7 px-2.5 items-center justify-center rounded-lg text-xs font-semibold transition-all active:scale-95 cursor-pointer"
-              style={{
-                background: isSelected ? "var(--accent-700)" : "var(--surface-soft)",
-                color: isSelected ? "#fffdf9" : "var(--app-fg)",
-                border: isSelected ? "none" : "1.5px solid var(--card-border)",
-              }}
+              className={cn(
+                "px-2 py-0.5 rounded text-[9px] font-bold transition-all border cursor-pointer h-5 flex items-center justify-center select-none",
+                isSelected
+                  ? "bg-[#d97706] text-[#fdf6e2] border-[#b45309] font-extrabold shadow-sm"
+                  : "bg-transparent text-[#fcd34d]/80 border-transparent hover:bg-[#5c3a21]"
+              )}
             >
               {swara.label}
             </button>
@@ -65,19 +66,15 @@ export function TargetNote({ rootNote, octave, selectedDegree, onSelectDegree }:
         })}
       </div>
 
-      {/* Compact play button next to it */}
+      {/* Play Reference Tone Icon */}
       {selectedDegree !== null && (
         <button
           onClick={() => playReference(selectedDegree)}
-          className="flex h-7 w-7 items-center justify-center rounded-lg transition-all active:scale-95 cursor-pointer"
-          style={{
-            background: "var(--surface-soft)",
-            border: "1.5px solid var(--card-border)",
-            color: "var(--accent-700)",
-          }}
+          className="h-5 w-5 rounded bg-[#5c3a21] hover:bg-[#784928] text-[#fcd34d] flex items-center justify-center transition-colors cursor-pointer border border-[#2a1405] ml-0.5"
           title="Play Reference Tone"
+          aria-label="Play reference tone"
         >
-          <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="currentColor">
+          <svg viewBox="0 0 20 20" className="h-2.5 w-2.5" fill="currentColor">
             <path d="M6.3 2.841A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
           </svg>
         </button>

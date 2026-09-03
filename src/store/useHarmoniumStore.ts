@@ -46,7 +46,7 @@ export const useHarmoniumStore = create<HarmoniumState>()(
     (set, get) => ({
       volume: 0.8,
       sustain: 0.6,
-      octave: 4,
+      octave: 3,
       transpose: 0,
       drone: "off",
       rootNote: "C",

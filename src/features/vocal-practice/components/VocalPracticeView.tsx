@@ -1,10 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { usePitchDetector } from "../hooks/usePitchDetector";
 import { PitchGraph } from "./PitchGraph";
 import { TargetNote } from "./TargetNote";
+import { Button } from "@/components/ui/Button";
 import { freqToMidi, sargamDegreeToMidi } from "../utils/sargamPitch";
+import { useTanpuraStore, type TanpuraDroneMode } from "@/store/useTanpuraStore";
+import { useLibraryStore } from "@/store/useLibraryStore";
+import { useProfileStore } from "@/store/useProfileStore";
+import { RecordingControls, type RecordingController } from "@/features/harmonium/components/RecordingControls";
+import { saveBlobUrlAsRecording } from "@/services/localRecordingStorage";
+import { getUserMicStream } from "../engine/pitchDetector";
+import { cn } from "@/lib/cn";
 import type { RootNote } from "@/types";
 
 const ROOT_NOTES: RootNote[] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -17,120 +25,306 @@ const SAPTAKS = [
   { label: "s6", octave: 6 },
 ];
 
+function useVocalRecordingController(): RecordingController {
+  const recordings = useLibraryStore((s) => s.recordings);
+  const addRecording = useLibraryStore((s) => s.addRecording);
+  const deleteRecording = useLibraryStore((s) => s.deleteRecording);
+  const updateStats = useProfileStore((s) => s.updateStats);
+  const recordingCount = recordings.length;
+
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingName, setRecordingName] = useState("");
+  const [savedBlobUrl, setSavedBlobUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const startTimeRef = useRef<number>(0);
+  const durationRef = useRef<number>(0);
+
+  const sortedRecordings = recordings
+    .filter((r) => (r.instrument as string) === "voice" || r.instrument === "other")
+    .slice()
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 6);
+
+  async function handleStart() {
+    if (isStarting || isRecording) return;
+    if (savedBlobUrl) URL.revokeObjectURL(savedBlobUrl);
+    setError(null);
+    setRecordingName("");
+    setSavedBlobUrl(null);
+    setIsStarting(true);
+    try {
+      const stream = await getUserMicStream();
+      chunksRef.current = [];
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.start(100);
+      startTimeRef.current = Date.now();
+      setIsRecording(true);
+    } catch (captureErr) {
+      const msg = captureErr instanceof Error ? captureErr.message : "Microphone recording could not start.";
+      setError(msg);
+      setIsRecording(false);
+    } finally {
+      setIsStarting(false);
+    }
+  }
+
+  async function handleStop() {
+    setError(null);
+    durationRef.current = Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000));
+    setIsRecording(false);
+
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+
+    await new Promise<void>((resolve) => {
+      recorder.onstop = () => resolve();
+      recorder.stop();
+    });
+
+    const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+    if (blob.size === 0) {
+      setError("No audio captured. Please try recording again.");
+      return;
+    }
+    setSavedBlobUrl(URL.createObjectURL(blob));
+  }
+
+  async function handleSave() {
+    if (!savedBlobUrl) return;
+    const id = crypto.randomUUID();
+    let storageUrl: string | null = null;
+    try {
+      storageUrl = await saveBlobUrlAsRecording(id, savedBlobUrl);
+    } catch {
+      storageUrl = null;
+    }
+
+    const name = recordingName.trim() || `Vocal Take ${new Date().toLocaleString()}`;
+    addRecording({
+      id,
+      uid: "",
+      name,
+      durationSeconds: durationRef.current,
+      createdAt: new Date(),
+      storageUrl,
+      isFavorite: false,
+      notes: "",
+      tags: ["voice", "alap"],
+      instrument: "other",
+      blobUrl: savedBlobUrl,
+    });
+    updateStats({ recordingsCount: recordingCount + 1 });
+    setSavedBlobUrl(null);
+    setRecordingName("");
+  }
+
+  function handleDiscard() {
+    if (savedBlobUrl) URL.revokeObjectURL(savedBlobUrl);
+    setSavedBlobUrl(null);
+    setRecordingName("");
+  }
+
+  function handleDeleteSavedRecording(id: string, _name: string) {
+    deleteRecording(id);
+  }
+
+  return {
+    isRecording,
+    recordedNotesCount: 0,
+    recordingsCount: sortedRecordings.length,
+    sortedRecordings,
+    savedBlobUrl,
+    recordingName,
+    error,
+    isStarting,
+    setRecordingName,
+    handleStart,
+    handleStop,
+    handleSave,
+    handleDiscard,
+    handleDeleteSavedRecording,
+  };
+}
+
 export function VocalPracticeView() {
   const [rootNote, setRootNote] = useState<RootNote>("C");
   const [octave, setOctave] = useState(4);
   const [targetDegree, setTargetDegree] = useState<number | null>(null);
 
   const { pitch, permission, startListening, stopListening } = usePitchDetector(rootNote);
+  const recordingController = useVocalRecordingController();
+
+  const { mode: tanpuraMode, setMode: setTanpuraMode, setRootNote: setTanpuraRoot, setOctave: setTanpuraOctave } = useTanpuraStore();
 
   const isListening = pitch.isListening;
 
-  // Derive live label — no effect needed, pure derivation
   const liveLabel = pitch.noteInfo
     ? { sargam: pitch.noteInfo.sargam, cents: pitch.cents, accuracy: pitch.accuracy }
     : null;
 
-  // Match: within 30 cents of target (using smoothed frequency)
   const targetMidi = targetDegree !== null ? sargamDegreeToMidi(targetDegree, rootNote, octave) : null;
   const isMatching = targetMidi !== null && pitch.smoothedFrequency !== null &&
     Math.abs(freqToMidi(pitch.smoothedFrequency) - targetMidi) < 0.30;
 
+  const isInTune = pitch.accuracy === "on";
+
+  // Keep Tanpura Drone synced to the exact Root Sa and Octave selected in Voice Practice
+  useEffect(() => {
+    setTanpuraRoot(rootNote);
+    setTanpuraOctave(Math.max(2, Math.min(5, octave)));
+  }, [rootNote, octave, setTanpuraOctave, setTanpuraRoot]);
+
+  function handleRootNoteChange(n: RootNote) {
+    setRootNote(n);
+    setTanpuraRoot(n);
+  }
+
+  function handleOctaveChange(oct: number) {
+    setOctave(oct);
+    setTanpuraOctave(Math.max(2, Math.min(5, oct)));
+  }
+
+  function toggleDrone() {
+    if (tanpuraMode === "off") {
+      setTanpuraRoot(rootNote);
+      setTanpuraOctave(Math.max(2, Math.min(5, octave)));
+      setTanpuraMode("sa");
+    } else {
+      setTanpuraMode("off");
+    }
+  }
+
   return (
-    <div className="w-full flex flex-col gap-3">
+    <div className="w-full flex flex-col gap-4">
 
-      {/* ── Practice Console (Top Control Bar) ───────────────────────── */}
-      <div
-        className="rounded-2xl p-4 flex flex-col lg:flex-row items-center justify-between gap-4"
-        style={{ background: "var(--card-bg)", border: "1.5px solid var(--card-border)" }}
-      >
-        {/* Left section: Mic Power & Scale / Octave Controls */}
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Title */}
-          <span
-            className="text-sm font-bold uppercase tracking-wider mr-1"
-            style={{
-              fontFamily: "var(--font-cormorant), Georgia, serif",
-              fontSize: "1.2rem",
-              color: "var(--accent-700)",
-            }}
-          >
-            Swar Alap
-          </span>
+      {/* ── Outer Header Bar (Matching Harmonium Reference) ───────────────── */}
+      <div className="flex items-center justify-between gap-3 px-1">
+        <div>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9a683b]">
+            Riyaaz instrument
+          </p>
+          <h1 className="font-serif text-2xl font-semibold tracking-tight text-[#2f2119]">
+            Voice Practice <span className="text-xs font-sans font-semibold text-[#8a735b]">(Swar Alap)</span>
+          </h1>
+        </div>
 
-          {/* Mic Toggle Button */}
+        {/* Right Action Controls: Record Button + Mic Toggle */}
+        <div className="flex items-center gap-2">
+          {recordingController.isRecording ? (
+            <Button variant="danger" size="sm" onClick={recordingController.handleStop} className="h-8 text-xs gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-[#fecaca] animate-pulse" />
+              Stop
+            </Button>
+          ) : (
+            <Button
+              variant="surface"
+              size="sm"
+              onClick={recordingController.handleStart}
+              disabled={recordingController.isStarting || Boolean(recordingController.savedBlobUrl)}
+              className="h-8 text-xs gap-1.5"
+            >
+              <span className="h-2 w-2 rounded-full bg-[#dc2626]" />
+              {recordingController.isStarting ? "Starting…" : "Record"}
+            </Button>
+          )}
+
           <button
             onClick={isListening ? stopListening : startListening}
             disabled={permission === "requesting" || permission === "unsupported"}
-            className="flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all active:scale-95 disabled:opacity-50 cursor-pointer h-7"
+            className="flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all active:scale-95 disabled:opacity-50 cursor-pointer h-8 border shadow-xs"
             style={{
               background: isListening
-                ? "var(--app-fg)" // Deep charcoal when active
+                ? "var(--app-fg)"
                 : "var(--surface-soft)",
               color: isListening ? "#fffdf9" : "var(--ink-soft)",
-              border: isListening ? "1.5px solid var(--app-fg)" : "1.5px solid var(--card-border)",
-              boxShadow: isListening ? "0 2px 8px rgba(0,0,0,0.12)" : "none",
+              borderColor: isListening ? "var(--app-fg)" : "var(--card-border)",
             }}
           >
             {isListening ? (
               <>
                 <span
-                  className="h-2 w-2 rounded-full inline-block"
-                  style={{
-                    background: "#5aa064",
-                    boxShadow: "0 0 0 2.5px rgba(90,160,100,0.30)",
-                    animation: "pulse 1.5s ease-in-out infinite",
-                  }}
+                  className="h-2 w-2 rounded-full inline-block bg-[#5aa064] animate-pulse"
+                  style={{ boxShadow: "0 0 0 2.5px rgba(90,160,100,0.30)" }}
                 />
-                Mic is ON
+                Mic ON
               </>
             ) : (
               <>
                 <span className="h-2 w-2 rounded-full inline-block bg-gray-400" />
-                Mic is OFF
+                Mic OFF
               </>
             )}
           </button>
+        </div>
+      </div>
 
-          {/* Separator line */}
-          <div className="hidden sm:block h-6 w-px" style={{ background: "var(--card-border)" }} />
-
-          {/* Sa Selector */}
-          <label className="flex items-center gap-1.5 text-xs font-bold" style={{ color: "var(--ink-soft)" }}>
-            Sa =
+      {/* ── Wood-Grain Control Console Bar ─────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-[#2a1405] bg-gradient-to-r from-[#854d27] to-[#693c1d] px-3.5 py-2 text-[#fdf6e2] shadow-md">
+        
+        {/* Left: Root Sa & Saptak Quick Jumps + Tanpura Drone Toggle */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 bg-[#3d200d] px-2 py-0.5 rounded border border-[#2a1405]">
+            <span className="text-[9px] font-bold text-[#fcd34d] uppercase tracking-wider">Root Sa</span>
             <select
               value={rootNote}
-              onChange={(e) => setRootNote(e.target.value as RootNote)}
-              className="rounded-lg px-2 py-1 text-xs font-semibold cursor-pointer h-7"
-              style={{
-                background: "var(--card-bg)",
-                border: "1.5px solid var(--card-border)",
-                color: "var(--app-fg)",
-              }}
+              onChange={(e) => handleRootNoteChange(e.target.value as RootNote)}
+              className="h-6 rounded border-0 bg-transparent px-0.5 text-[11px] font-bold text-[#fdf6e2] focus:outline-none cursor-pointer"
+              aria-label="Choose Root Sa note"
             >
-              {ROOT_NOTES.map((n) => <option key={n} value={n}>{n}</option>)}
+              {ROOT_NOTES.map((n) => (
+                <option key={n} value={n} className="bg-[#5c3a21] text-[#fdf6e2]">
+                  {n}
+                </option>
+              ))}
             </select>
-          </label>
+          </div>
 
-          {/* Saptak Buttons Selector (referencing harmonium layout) */}
-          <div className="flex items-center gap-0.5 bg-[var(--surface-muted)] p-0.5 rounded border border-[var(--card-border)] h-7">
+          <div className="flex items-center gap-0.5 bg-[#3d200d] p-0.5 rounded border border-[#2a1405] h-7">
             {SAPTAKS.map((item) => (
               <button
                 key={item.octave}
-                onClick={() => setOctave(item.octave)}
-                className={`px-2.5 rounded text-[9px] font-bold transition-all border cursor-pointer h-5 flex items-center justify-center ${octave === item.octave
-                    ? "bg-[var(--accent-700)] text-[#fffdf9] border-transparent font-extrabold"
-                    : "bg-transparent text-[var(--ink-soft)] border-transparent hover:bg-[var(--surface-soft)]"
-                  }`}
+                onClick={() => handleOctaveChange(item.octave)}
+                className={cn(
+                  "px-2 py-0.5 rounded text-[9px] font-bold transition-all border cursor-pointer h-5 flex items-center justify-center",
+                  octave === item.octave
+                    ? "bg-[#d97706] text-[#fdf6e2] border-[#b45309] font-extrabold shadow-sm"
+                    : "bg-transparent text-[#fcd34d]/80 border-transparent hover:bg-[#5c3a21]"
+                )}
               >
                 {item.label}
               </button>
             ))}
           </div>
+
+          {/* Quick Tanpura Drone Pill Toggle */}
+          <button
+            onClick={toggleDrone}
+            className={cn(
+              "px-2.5 py-0.5 rounded text-[9px] font-bold transition-all border cursor-pointer h-7 flex items-center gap-1.5 select-none",
+              tanpuraMode !== "off"
+                ? "bg-[#d97706] text-[#fdf6e2] border-[#b45309] font-extrabold shadow-sm"
+                : "bg-[#3d200d] text-[#fcd34d]/90 border-[#2a1405] hover:bg-[#5c3a21]"
+            )}
+          >
+            <span className={cn("h-1.5 w-1.5 rounded-full", tanpuraMode !== "off" ? "bg-[#fef08a] animate-pulse" : "bg-gray-400")} />
+            Drone: {tanpuraMode !== "off" ? tanpuraMode.toUpperCase() : "OFF"}
+          </button>
         </div>
 
         {/* Right section: Target Note Selector */}
-        <div className="w-full lg:w-auto flex justify-start lg:justify-end">
+        <div className="flex items-center gap-2">
           <TargetNote
             rootNote={rootNote}
             octave={octave}
@@ -140,7 +334,7 @@ export function VocalPracticeView() {
         </div>
       </div>
 
-      {/* ── Main Workspace ─────────────────────────────────────────── */}
+      {/* ── Main Workspace Cards ─────────────────────────────────────── */}
       <div className="flex flex-col gap-3">
 
         {/* Live Readout & Status Strip */}
@@ -159,86 +353,79 @@ export function VocalPracticeView() {
             </span>
           ) : permission === "unsupported" ? (
             <span className="text-xs font-semibold text-[#a73028]">
-              ⚠️ Browser microphone access is not supported.
+              ⚠️ Live pitch detection is not supported in this browser. Please use Chrome or Safari.
             </span>
-          ) : permission === "requesting" ? (
-            <span className="text-xs font-semibold text-[var(--ink-soft)] flex items-center gap-2">
-              <span
-                className="h-3 w-3 rounded-full border-2 inline-block border-[var(--accent-700)] border-t-transparent animate-spin"
-              />
-              Requesting microphone access…
+          ) : !isListening ? (
+            <span className="text-xs font-semibold text-[var(--ink-soft)]">
+              🎙 Click <strong>&quot;Mic OFF&quot;</strong> above to start live pitch tracking.
             </span>
-          ) : (
-            <div className="flex items-center gap-4">
-              {/* Big note name */}
-              <span
-                style={{
-                  fontFamily: "var(--font-cormorant), Georgia, serif",
-                  fontSize: "2rem",
-                  fontWeight: 700,
-                  lineHeight: 1,
-                  letterSpacing: "-0.01em",
-                  color: isMatching ? "#3a7a44" : liveLabel ? "var(--app-fg)" : "var(--ink-soft)",
-                  transition: "color 0.3s",
-                  minWidth: "3.5rem",
-                }}
-              >
-                {liveLabel?.sargam ?? "—"}
-              </span>
+          ) : liveLabel ? (
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-baseline gap-3">
+                <span
+                  className="font-serif font-bold text-2xl tracking-tight"
+                  style={{ color: "var(--accent-700)" }}
+                >
+                  {liveLabel.sargam}
+                </span>
+                <span className="text-xs font-semibold" style={{ color: "var(--app-fg)" }}>
+                  {pitch.noteInfo?.noteName}
+                </span>
+                <span className="text-[11px] font-mono text-[var(--ink-soft)]">
+                  {pitch.frequency ? `${pitch.frequency.toFixed(1)} Hz` : ""}
+                </span>
+              </div>
 
-              {liveLabel && (
-                <div className="flex flex-col gap-0.5">
-                  <span
-                    className="text-xs font-semibold leading-none"
-                    style={{
-                      color: isMatching
-                        ? "#3a7a44"
-                        : liveLabel.accuracy === "flat"
-                          ? "#5a7ab0"
-                          : liveLabel.accuracy === "sharp"
-                            ? "#b06820"
-                            : "var(--ink-soft)",
-                      transition: "color 0.3s",
-                    }}
-                  >
-                    {isMatching
-                      ? "✓ Swar matched"
-                      : liveLabel.accuracy === "flat"
-                        ? "▼ Flat"
-                        : liveLabel.accuracy === "sharp"
-                          ? "▲ Sharp"
-                          : "≈ Approaching"}
+              {/* Accuracy Badge */}
+              <div className="flex items-center gap-2">
+                <span
+                  className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border"
+                  style={{
+                    background: isInTune
+                      ? "rgba(58,122,68,0.12)"
+                      : pitch.accuracy === "sharp"
+                      ? "rgba(217,119,6,0.12)"
+                      : "rgba(37,99,235,0.12)",
+                    color: isInTune
+                      ? "#2e6a39"
+                      : pitch.accuracy === "sharp"
+                      ? "#b45309"
+                      : "#1d4ed8",
+                    borderColor: isInTune
+                      ? "rgba(58,122,68,0.30)"
+                      : pitch.accuracy === "sharp"
+                      ? "rgba(217,119,6,0.30)"
+                      : "rgba(37,99,235,0.30)",
+                  }}
+                >
+                  {isInTune
+                    ? "In Tune ✓"
+                    : pitch.accuracy === "sharp"
+                    ? `Sharp +${liveLabel.cents}¢`
+                    : `Flat ${liveLabel.cents}¢`}
+                </span>
+
+                {isMatching && (
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-1 rounded-full bg-[#3a7a44] text-white animate-bounce">
+                    Matched! 🎯
                   </span>
-                  <span
-                    className="text-[10px] font-mono leading-none"
-                    style={{ color: "var(--ink-soft)", opacity: 0.7 }}
-                  >
-                    {liveLabel.cents > 0 ? `+${liveLabel.cents}¢` : liveLabel.cents < 0 ? `${liveLabel.cents}¢` : "±0¢"}
-                  </span>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          )}
-
-          {isListening && pitch.frequency && (
-            <span
-              className="text-[11px] font-mono tabular-nums"
-              style={{ color: "var(--ink-soft)", opacity: 0.5 }}
-            >
-              {pitch.frequency.toFixed(1)} Hz
+          ) : (
+            <span className="text-xs font-semibold text-[var(--ink-soft)] animate-pulse">
+              Listening… Sing or hum a note into your mic.
             </span>
           )}
         </div>
 
-        {/* ── Pitch Graph ─────────────────────────────────────────── */}
+        {/* Realtime Pitch Visualizer Graph */}
         <div
-          className="w-full overflow-hidden rounded-2xl animate-fade-in"
+          className="w-full overflow-hidden rounded-2xl shadow-lg border border-[#3d2f21]"
           style={{
             height: "calc(100vh - 320px)",
             minHeight: "380px",
             maxHeight: "520px",
-            border: "1px solid rgba(0,0,0,0.15)",
-            boxShadow: "0 4px 24px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04)",
           }}
         >
           <PitchGraph
@@ -250,8 +437,11 @@ export function VocalPracticeView() {
             isListening={isListening}
           />
         </div>
-
       </div>
+
+      {/* ── Saved Recordings Section ── */}
+      <RecordingControls controller={recordingController} />
+
     </div>
   );
 }

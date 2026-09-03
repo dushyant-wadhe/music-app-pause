@@ -32,25 +32,24 @@ export function BeatVisualizer() {
   }, { groups: [], beatOffset: 0, taliCount: 1 }).groups;
 
   return (
-    <div className="tabla-beat-visualizer flex flex-col gap-3" aria-label={`${selectedTaal} beat pattern`}>
-      <div className="flex items-start gap-3 flex-wrap">
+    <div className="tabla-beat-visualizer flex flex-col items-center justify-center gap-1 select-none w-full" aria-label={`${selectedTaal} beat pattern`}>
+      <div className="flex items-start justify-center gap-2 flex-wrap w-full">
         {vibhags.map(({ beats, isSam, isKhali, vi, marker }) => (
-          <div key={vi} className="flex flex-col items-start gap-1">
+          <div key={vi} className="flex flex-col items-center gap-0.5 border-r border-[#dbcdb8]/60 pr-2 last:border-r-0 last:pr-0">
             {/* Vibhag marker: X (Sam) / 0 (Khali) / number (Tali) */}
             <span
               className={cn(
-                "text-[11px] font-bold tracking-widest",
+                "text-[9px] font-bold tracking-wider leading-none mb-0.5",
                 isSam && !isKhali && "text-[#8a5a2b]",
-                isKhali && !isSam && "text-[#6b7280]",
-                isSam && isKhali && "text-[#8a5a2b]/60",
-                !isSam && !isKhali && "text-[#6b7280]"
+                isKhali && "text-[#786b5d]",
+                !isSam && !isKhali && "text-[#8a5a2b]/80"
               )}
             >
               {marker}
             </span>
 
             {/* Beat cells */}
-            <div className="flex gap-1.5">
+            <div className="flex gap-1 justify-center">
               {beats.map((beat) => {
                 const isActive = isPlaying && currentBeat === beat.index;
                 return (
@@ -63,10 +62,10 @@ export function BeatVisualizer() {
                   >
                     <div
                       className={cn(
-                        "tabla-beat-cell w-10 h-10 rounded-md flex items-center justify-center text-xs font-bold",
+                        "tabla-beat-cell w-7 h-7 sm:w-8 sm:h-8 rounded flex items-center justify-center text-[10px] sm:text-xs font-bold leading-none",
                         "border transition-all duration-75 select-none",
                         isActive &&
-                          "bg-[#6f3e21] text-[#fff8ed] border-[#51301d] scale-105",
+                          "bg-[#6f3e21] text-[#fff8ed] border-[#51301d] scale-105 shadow-md ring-1 ring-[#9b6524]",
                         !isActive && beat.isSam && !beat.isKhali &&
                           "bg-[#f4e5cf] text-[#75451f] border-[#cfa675]",
                         !isActive && beat.isSam && beat.isKhali &&
@@ -79,7 +78,7 @@ export function BeatVisualizer() {
                     >
                       {beat.syllable}
                     </div>
-                    <span className="text-[9px] font-mono text-[#6b7280]">
+                    <span className="text-[8px] font-mono text-[#8a7a6b] leading-none">
                       {beat.index + 1}
                     </span>
                   </div>
@@ -88,19 +87,6 @@ export function BeatVisualizer() {
             </div>
           </div>
         ))}
-      </div>
-
-      {/* Legend */}
-      <div className="flex gap-3 flex-wrap pt-1">
-        <span className="flex items-center gap-1 text-[9px] text-[#6b7280]">
-          <span className="font-bold text-[#8a5a2b]">X</span> Sam (first beat)
-        </span>
-        <span className="flex items-center gap-1 text-[9px] text-[#6b7280]">
-          <span className="font-bold text-[#6b7280]">2,3...</span> Tali (strong beat)
-        </span>
-        <span className="flex items-center gap-1 text-[9px] text-[#6b7280]">
-          <span className="font-bold">0</span> Khali (empty beat)
-        </span>
       </div>
     </div>
   );

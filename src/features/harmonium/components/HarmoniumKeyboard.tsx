@@ -68,8 +68,8 @@ export function HarmoniumKeyboard({ onNoteOn, onNoteOff }: KeyboardProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScrollRef = useRef(false);
 
-  const whiteKeyWidth = 45;
-  const blackKeyWidth = 26;
+  const whiteKeyWidth = 48;
+  const blackKeyWidth = 28;
 
   const keys = generateFull88Keys();
   const whites = keys.filter((k) => !k.isBlack);
